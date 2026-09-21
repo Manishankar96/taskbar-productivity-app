@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import Modal from "../../components/common/Modal";
+
 import {
   CheckSquare,
   Plus,
@@ -809,12 +811,15 @@ function QuickTasks() {
           ADD / EDIT FORM
       ===================================================== */}
 
-      {showForm && (
-
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        title={editingTask ? "Edit Task" : "Add Task"}
+        showCloseButton={false}
+        className="quick-tasks-form-modal"
+      >
         <section className="module-form-card">
-
           <div className="add-topic-header">
-
             <h2>
               {editingTask
                 ? "Edit Task"
@@ -828,18 +833,15 @@ function QuickTasks() {
             >
               <X size={20} />
             </button>
-
           </div>
 
           <form
             className="grid-form"
             onSubmit={handleSubmit}
           >
-
             {/* TASK */}
 
             <div className="form-group">
-
               <label>
                 Task
               </label>
@@ -856,13 +858,11 @@ function QuickTasks() {
                   })
                 }
               />
-
             </div>
 
             {/* DUE DATE */}
 
             <div className="form-group">
-
               <label>
                 Due Date
               </label>
@@ -878,13 +878,11 @@ function QuickTasks() {
                   })
                 }
               />
-
             </div>
 
             {/* PRIORITY */}
 
             <div className="form-group">
-
               <label>
                 Priority
               </label>
@@ -899,7 +897,6 @@ function QuickTasks() {
                   })
                 }
               >
-
                 <option value="Low">
                   Low
                 </option>
@@ -911,15 +908,12 @@ function QuickTasks() {
                 <option value="High">
                   High
                 </option>
-
               </select>
-
             </div>
 
             {/* STATUS */}
 
             <div className="form-group">
-
               <label>
                 Status
               </label>
@@ -934,7 +928,6 @@ function QuickTasks() {
                   })
                 }
               >
-
                 <option value="pending">
                   Pending
                 </option>
@@ -942,9 +935,7 @@ function QuickTasks() {
                 <option value="completed">
                   Completed
                 </option>
-
               </select>
-
             </div>
 
             {/* PIN OPTION */}
@@ -959,7 +950,6 @@ function QuickTasks() {
                 marginTop: "4px",
               }}
             >
-
               <input
                 type="checkbox"
                 checked={
@@ -977,7 +967,6 @@ function QuickTasks() {
               <Pin size={17} />
 
               Pin this task
-
             </label>
 
             <button
@@ -988,11 +977,9 @@ function QuickTasks() {
                 ? "Save Changes"
                 : "Add Task"}
             </button>
-
           </form>
-
         </section>
-      )}
+      </Modal>
 
       {/* =====================================================
           PINNED TASKS

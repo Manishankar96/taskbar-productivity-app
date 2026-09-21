@@ -12,6 +12,8 @@ import {
 
 import { LocalNotifications } from "@capacitor/local-notifications";
 
+import Modal from "../../components/common/Modal";
+
 import {
   getItemsFromFirestore,
   saveItemToFirestore,
@@ -241,7 +243,15 @@ function Reminders() {
         notified:
           reminder.notified ===
           true,
-      }));
+      }))
+      .filter(
+        (reminder, index, list) =>
+          list.findIndex(
+            (item) =>
+              String(item.id) ===
+              String(reminder.id)
+          ) === index
+      );
   }
 
   /* =========================================================
@@ -961,15 +971,21 @@ function Reminders() {
     ===================================================== */
 
     setReminders((previous) => {
-      if (editingReminder) {
-        return previous.map(
-          (item) =>
-            String(item.id) ===
-            String(
-              editingReminder.id
-            )
-              ? reminder
-              : item
+      const reminderId = String(reminder.id);
+
+      // The Firestore realtime listener can receive the
+      // newly saved reminder before this local state update.
+      // Do not append the same reminder twice.
+      const alreadyExists = previous.some(
+        (item) =>
+          String(item.id) === reminderId
+      );
+
+      if (alreadyExists) {
+        return previous.map((item) =>
+          String(item.id) === reminderId
+            ? reminder
+            : item
         );
       }
 
@@ -1863,12 +1879,18 @@ function Reminders() {
 
       {showForm && (
 
-        <section
-          className="module-form-card"
-          style={{
-            marginTop: 20,
-          }}
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="reminders-form-modal"
         >
+          <section
+            className="module-form-card"
+            style={{
+              marginTop: 0,
+            }}
+          >
 
           <div className="add-topic-header">
 
@@ -1984,8 +2006,9 @@ function Reminders() {
             </button>
 
           </form>
+          </section>
+        </Modal>
 
-        </section>
       )}
 
       {/* =====================================================

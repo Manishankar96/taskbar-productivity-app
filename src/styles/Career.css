@@ -18,14 +18,14 @@
 .resumes-page,
 .interviews-page,
 .projects-page {
-  --career-red: #ef233c;
-  --career-red-dark: #c9182b;
-  --career-red-soft: rgba(239, 35, 60, 0.14);
+  --career-red: var(--taskbar-theme-main);
+  --career-red-dark: var(--taskbar-theme-main);
+  --career-red-soft: color-mix(in srgb, var(--taskbar-theme-main) 14%, transparent);
   --career-glass: rgba(8, 8, 12, 0.62);
   --career-glass-strong: rgba(8, 8, 12, 0.78);
   --career-glass-soft: rgba(255, 255, 255, 0.055);
   --career-border: rgba(255, 255, 255, 0.13);
-  --career-border-red: rgba(239, 35, 60, 0.42);
+  --career-border-red: color-mix(in srgb, var(--taskbar-theme-main) 42%, transparent);
   --career-text: #ffffff;
   --career-muted: rgba(255, 255, 255, 0.68);
   --career-faint: rgba(255, 255, 255, 0.48);
@@ -322,8 +322,8 @@
 }
 
 .job-preparation-list-item-completed {
-  border-color: rgba(239, 35, 60, 0.24);
-  background: rgba(239, 35, 60, 0.08);
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 24%, transparent);
+  background: color-mix(in srgb, var(--taskbar-theme-main) 8%, transparent);
 }
 
 .job-preparation-list-item > span {
@@ -477,7 +477,7 @@
 .interviews-item:hover,
 .projects-item:hover {
   border-color: var(--career-border-red) !important;
-  background: rgba(239, 35, 60, 0.07) !important;
+  background: color-mix(in srgb, var(--taskbar-theme-main) 7%, transparent) !important;
 }
 
 /* Stats */
@@ -927,7 +927,7 @@
 .resumes-header svg,
 .interviews-header svg,
 .projects-header svg {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 /* Stats */
@@ -982,7 +982,7 @@
 .saved-jobs-summary-value {
   display: block;
   margin-top: 9px;
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
   font-size: 24px;
   font-weight: 800;
 }
@@ -1010,7 +1010,7 @@
 .saved-jobs-search-icon,
 .applications-search-icon {
   flex: 0 0 auto;
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .saved-jobs-search-input,
@@ -1170,8 +1170,8 @@
 .saved-jobs-input:focus,
 .resumes-input:focus,
 .projects-input:focus {
-  border-color: rgba(239,35,60,.60) !important;
-  box-shadow: 0 0 0 3px rgba(239,35,60,.10) !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 60%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--taskbar-theme-main) 10%, transparent) !important;
 }
 
 .applications-input::placeholder,
@@ -1236,8 +1236,8 @@
 .saved-jobs-button-primary,
 .resumes-button-primary,
 .projects-button-primary {
-  background: #ef233c !important;
-  border-color: #ef233c !important;
+  background: var(--taskbar-theme-main) !important;
+  border-color: var(--taskbar-theme-main) !important;
   color: #fff !important;
 }
 
@@ -1245,8 +1245,8 @@
 .saved-jobs-button-primary:hover,
 .resumes-button-primary:hover,
 .projects-button-primary:hover {
-  background: #c9182b !important;
-  border-color: #c9182b !important;
+  background: var(--taskbar-theme-main) !important;
+  border-color: var(--taskbar-theme-main) !important;
 }
 
 .applications-button-secondary,
@@ -1271,7 +1271,7 @@
 .saved-jobs-delete-button,
 .resumes-delete-button,
 .projects-delete-button {
-  color: #ff5963 !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .applications-button svg,
@@ -1311,8 +1311,8 @@
 .saved-jobs-item:hover,
 .resumes-item:hover,
 .projects-item:hover {
-  border-color: rgba(239,35,60,.38) !important;
-  background: rgba(239,35,60,.055) !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 38%, transparent) !important;
+  background: color-mix(in srgb, var(--taskbar-theme-main) 5.5%, transparent) !important;
 }
 
 .applications-item-header,
@@ -1369,7 +1369,7 @@
 .saved-jobs-meta-item svg,
 .resumes-item-meta svg,
 .projects-item-icon {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .applications-notes-preview,
@@ -1413,9 +1413,9 @@
   align-items: center;
   width: fit-content;
   padding: 4px 8px;
-  border: 1px solid rgba(239,35,60,.35) !important;
+  border: 1px solid color-mix(in srgb, var(--taskbar-theme-main) 35%, transparent) !important;
   border-radius: 999px;
-  background: rgba(239,35,60,.10) !important;
+  background: color-mix(in srgb, var(--taskbar-theme-main) 10%, transparent) !important;
   color: #fff !important;
   font-size: 11px;
   font-weight: 600;
@@ -1443,7 +1443,7 @@
 .saved-jobs-empty-state svg,
 .resumes-empty-state svg,
 .projects-empty-state svg {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .applications-empty-state h3,
@@ -1592,7 +1592,7 @@
 .interviews-button-secondary:hover,
 .projects-button-secondary:hover {
   background: rgba(20,20,24,.88) !important;
-  border-color: rgba(239,35,60,.55) !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 55%, transparent) !important;
 }
 
 /* ---------- Interviews: complete visual structure ---------- */
@@ -1743,12 +1743,12 @@
 }
 
 .interviews-icon-button svg {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .interviews-title-row svg,
 .interviews-stat-card svg {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .interviews-title,
@@ -1763,7 +1763,7 @@
 }
 
 .interviews-meta-item svg {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .interviews-empty-state {
@@ -1775,7 +1775,7 @@
 }
 
 .interviews-empty-icon {
-  color: #ef233c !important;
+  color: var(--taskbar-theme-main) !important;
 }
 
 .interviews-empty-title {
@@ -1855,3 +1855,85 @@
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   INTERVIEWS MODAL — PORTAL BUTTON FIX
+   Modal.jsx renders the modal into document.body.
+   Therefore this rule intentionally does NOT depend on
+   .interviews-page as an ancestor.
+   ========================================================= */
+
+body button.interviews-button.interviews-button-primary {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+
+  width: auto !important;
+  min-width: 150px !important;
+  min-height: 42px !important;
+  height: 42px !important;
+  box-sizing: border-box !important;
+
+  padding: 10px 16px !important;
+  margin: 0 !important;
+
+  background-color: var(--taskbar-theme-main, #e50914) !important;
+  background-image: linear-gradient(
+    135deg,
+    var(--taskbar-theme-main, #e50914) 0%,
+    var(--taskbar-theme-secondary, #050505) 100%
+  ) !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 100% !important;
+
+  border: 1px solid var(--taskbar-theme-main, #e50914) !important;
+  border-radius: 10px !important;
+
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+  cursor: pointer !important;
+
+  box-shadow:
+    0 8px 22px color-mix(
+      in srgb,
+      var(--taskbar-theme-main, #e50914) 30%,
+      transparent
+    ) !important;
+}
+
+body button.interviews-button.interviews-button-primary:hover,
+body button.interviews-button.interviews-button-primary:focus,
+body button.interviews-button.interviews-button-primary:focus-visible,
+body button.interviews-button.interviews-button-primary:active {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+
+  background-color: var(--taskbar-theme-main, #e50914) !important;
+  background-image: linear-gradient(
+    135deg,
+    var(--taskbar-theme-main, #e50914) 0%,
+    var(--taskbar-theme-secondary, #050505) 100%
+  ) !important;
+
+  border-color: var(--taskbar-theme-main, #e50914) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+
+  opacity: 1 !important;
+}
+
+body button.interviews-button.interviews-button-primary svg,
+body button.interviews-button.interviews-button-primary svg * {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+}
+

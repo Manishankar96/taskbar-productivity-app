@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Modal from "../../components/common/Modal";
 import {
   CalendarDays,
   FileText,
@@ -388,7 +389,13 @@ export default function Resumes() {
       </div>
 
       {/* Add / Edit Form */}
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="resumes-form-modal"
+      >
+m && (
         <section className="resumes-card resumes-form-card">
           <div className="resumes-form-header">
             <div>
@@ -504,7 +511,7 @@ export default function Resumes() {
             </button>
           </div>
         </section>
-      )}
+      </Modal>
 
       {/* Resume List */}
       <section className="resumes-card">

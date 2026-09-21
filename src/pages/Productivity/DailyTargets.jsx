@@ -9,6 +9,8 @@ import {
   Circle,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
+
 import {
   getItemsFromFirestore,
   saveItemToFirestore,
@@ -537,12 +539,18 @@ function DailyTargets() {
 
       {showForm && (
 
-        <section
-          className="module-form-card"
-          style={{
-            marginTop: 20,
-          }}
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="daily-targets-form-modal"
         >
+          <section
+            className="module-form-card"
+            style={{
+              marginTop: 0,
+            }}
+          >
 
           <div className="add-topic-header">
 
@@ -669,8 +677,8 @@ function DailyTargets() {
             </button>
 
           </form>
-
-        </section>
+          </section>
+        </Modal>
 
       )}
 

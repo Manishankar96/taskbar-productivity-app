@@ -16,6 +16,8 @@ import {
   saveJobPreparation,
 } from "../../utils/db";
 
+import Modal from "../../components/common/Modal";
+
 const DEFAULT_DATA = {
   careerGoal: "Get a Java Full Stack Developer job",
   targetRole: "Java Full Stack Developer",
@@ -506,7 +508,13 @@ export default function JobPreparation() {
             </button>
           </div>
         ) : (
-          <div>
+          <Modal
+            isOpen={editingGoal}
+            onClose={() => setEditingGoal(false)}
+            showCloseButton={false}
+            className="job-preparation-form-modal"
+          >
+            <div>
             <h2 className="job-preparation-form-title">
               Edit Career Goal
             </h2>
@@ -585,7 +593,8 @@ export default function JobPreparation() {
                 Cancel
               </button>
             </div>
-          </div>
+            </div>
+          </Modal>
         )}
       </section>
 
@@ -644,7 +653,14 @@ export default function JobPreparation() {
           </div>
 
           {showSkillForm && (
-            <div className="job-preparation-add-row">
+            <Modal
+              isOpen={showSkillForm}
+              onClose={() => setShowSkillForm(false)}
+              title="Add Skill"
+              showCloseButton={true}
+              className="job-preparation-form-modal job-preparation-add-skill-modal"
+            >
+              <div className="job-preparation-add-row">
               <input
                 value={newSkill}
                 onChange={(e) =>
@@ -668,7 +684,8 @@ export default function JobPreparation() {
               >
                 <Plus size={18} />
               </button>
-            </div>
+              </div>
+            </Modal>
           )}
 
           <div className="job-preparation-list">
@@ -745,7 +762,14 @@ export default function JobPreparation() {
           </div>
 
           {showTaskForm && (
-            <div className="job-preparation-add-row">
+            <Modal
+              isOpen={showTaskForm}
+              onClose={() => setShowTaskForm(false)}
+              title="Add Preparation Task"
+              showCloseButton={true}
+              className="job-preparation-form-modal job-preparation-add-task-modal"
+            >
+              <div className="job-preparation-add-row">
               <input
                 value={newTask}
                 onChange={(e) =>
@@ -781,7 +805,8 @@ export default function JobPreparation() {
               >
                 <Plus size={18} />
               </button>
-            </div>
+              </div>
+            </Modal>
           )}
 
           <div className="job-preparation-list">

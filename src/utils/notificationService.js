@@ -4,11 +4,12 @@
 // Purpose:
 // - Keep all intelligent notification logic in ONE place.
 // - Use actual TASKBAR data.
-// - Generate up to 3 useful notifications per day.
+// - Generate up to 5 useful notifications per day.
 // - Keep manual reminders separate.
 // - Personalize messages with the user's profile name.
 // - Prefer important tasks/deadlines over generic motivation.
 // - Use LOCAL dates, never UTC.
+// - Keep notifications calm, useful, short, and encouraging.
 // ============================================================
 
 import { LocalNotifications } from "@capacitor/local-notifications";
@@ -28,13 +29,18 @@ import {
 
 const STORAGE_KEY = "taskbar-smart-notification-state";
 
-const MAX_NOTIFICATIONS_PER_DAY = 3;
+const MAX_NOTIFICATIONS_PER_DAY = 5;
 
-// Three daily notification opportunities.
+// Five daily notification opportunities.
 const DAILY_WINDOWS = [
   {
     key: "morning",
-    hour: 9,
+    hour: 8,
+    minute: 30,
+  },
+  {
+    key: "late-morning",
+    hour: 11,
     minute: 0,
   },
   {
@@ -44,7 +50,12 @@ const DAILY_WINDOWS = [
   },
   {
     key: "evening",
-    hour: 19,
+    hour: 18,
+    minute: 0,
+  },
+  {
+    key: "night",
+    hour: 20,
     minute: 0,
   },
 ];
@@ -59,7 +70,8 @@ const SMART_NOTIFICATION_BASE_ID = 700000;
 function isNativeApp() {
   try {
     return Boolean(
-      window?.Capacitor &&
+      typeof window !== "undefined" &&
+        window.Capacitor &&
         typeof window.Capacitor.isNativePlatform === "function" &&
         window.Capacitor.isNativePlatform()
     );
@@ -168,7 +180,7 @@ async function areSmartNotificationsEnabled() {
 }
 
 function getProfileName(profile) {
-  if (!profile) return "there";
+  if (!profile) return "";
 
   const possibleNames = [
     profile.name,
@@ -184,7 +196,7 @@ function getProfileName(profile) {
     }
   }
 
-  return "there";
+  return "";
 }
 
 // ============================================================
@@ -198,26 +210,33 @@ function getNotificationState() {
     if (!raw) {
       return {
         date: getTodayLocalDateKey(),
+        scheduled: [],
         sent: [],
       };
     }
 
     const parsed = JSON.parse(raw);
 
-    if (!parsed || parsed.date !== getTodayLocalDateKey()) {
+    if (
+      !parsed ||
+      parsed.date !== getTodayLocalDateKey()
+    ) {
       return {
         date: getTodayLocalDateKey(),
+        scheduled: [],
         sent: [],
       };
     }
 
     return {
       date: parsed.date,
+      scheduled: safeArray(parsed.scheduled),
       sent: safeArray(parsed.sent),
     };
   } catch {
     return {
       date: getTodayLocalDateKey(),
+      scheduled: [],
       sent: [],
     };
   }
@@ -229,28 +248,113 @@ function saveNotificationState(state) {
       STORAGE_KEY,
       JSON.stringify({
         date: getTodayLocalDateKey(),
+        scheduled: safeArray(state.scheduled),
         sent: safeArray(state.sent),
       })
     );
   } catch {
-    // Local storage failure should never break TASKBAR.
+    // Notification state must never break TASKBAR.
   }
 }
 
 function hasSentToday(key) {
+  if (!key) return false;
+
+  return getNotificationState().sent.includes(key);
+}
+
+function markScheduled(key) {
+  if (!key) return;
+
   const state = getNotificationState();
 
-  return state.sent.includes(key);
+  if (!state.scheduled.includes(key)) {
+    state.scheduled.push(key);
+  }
+
+  saveNotificationState(state);
+}
+
+function unmarkScheduled(key) {
+  if (!key) return;
+
+  const state = getNotificationState();
+
+  state.scheduled = state.scheduled.filter(
+    (item) => item !== key
+  );
+
+  saveNotificationState(state);
 }
 
 function markSent(key) {
+  if (!key) return;
+
   const state = getNotificationState();
+
+  state.scheduled = state.scheduled.filter(
+    (item) => item !== key
+  );
 
   if (!state.sent.includes(key)) {
     state.sent.push(key);
   }
 
   saveNotificationState(state);
+}
+
+async function syncDeliveredSmartNotifications() {
+  if (!isNativeApp()) return;
+
+  try {
+    const delivered =
+      await LocalNotifications.getDeliveredNotifications();
+
+    for (const notification of safeArray(delivered?.notifications)) {
+      if (
+        notification?.extra?.type ===
+        "taskbar-smart-notification"
+      ) {
+        markSent(
+          notification?.extra?.eventKey
+        );
+      }
+    }
+  } catch (error) {
+    console.error(
+      "TASKBAR smart notification delivery sync error:",
+      error
+    );
+  }
+}
+
+let smartNotificationListenerRegistered = false;
+let smartNotificationListenerPromise = null;
+
+function registerSmartNotificationListener() {
+  if (!isNativeApp()) return null;
+
+  if (smartNotificationListenerRegistered) {
+    return smartNotificationListenerPromise;
+  }
+
+  smartNotificationListenerPromise = LocalNotifications.addListener(
+    "localNotificationReceived",
+    (notification) => {
+      if (
+        notification?.extra?.type ===
+        "taskbar-smart-notification"
+      ) {
+        markSent(
+          notification?.extra?.eventKey
+        );
+      }
+    }
+  );
+
+  smartNotificationListenerRegistered = true;
+
+  return smartNotificationListenerPromise;
 }
 
 // ============================================================
@@ -263,7 +367,11 @@ function getSmartNotificationId(windowKey, dateKey) {
   const value = `${windowKey}-${dateKey}`;
 
   for (let i = 0; i < value.length; i += 1) {
-    hash = (hash << 5) - hash + value.charCodeAt(i);
+    hash =
+      (hash << 5) -
+      hash +
+      value.charCodeAt(i);
+
     hash |= 0;
   }
 
@@ -295,7 +403,8 @@ export async function requestSmartNotificationPermission() {
     }
 
     return {
-      granted: permission.display === "granted",
+      granted:
+        permission.display === "granted",
       native: true,
     };
   } catch (error) {
@@ -318,7 +427,9 @@ export async function requestSmartNotificationPermission() {
 async function getCollection(collectionName) {
   try {
     const items =
-      await getItemsFromFirestore(collectionName);
+      await getItemsFromFirestore(
+        collectionName
+      );
 
     return safeArray(items);
   } catch (error) {
@@ -374,8 +485,6 @@ async function loadTaskbarData() {
     assessments,
     todoList,
     studySessions,
-    diet,
-    screenTime,
     jobPreparation,
     applications,
     savedJobs,
@@ -383,6 +492,8 @@ async function loadTaskbarData() {
     income,
     expenses,
     budgets,
+    timetable,
+    reminders,
   ] = await Promise.all([
     getSingleProfile(),
     getCollection("topics"),
@@ -392,15 +503,15 @@ async function loadTaskbarData() {
     getCollection("assessments"),
     getCollection("todoList"),
     getCollection("studySessions"),
-    getCollection("diet"),
-    getCollection("screenTime"),
     getCollection("jobPreparation"),
     getCollection("applications"),
     getCollection("savedJobs"),
     getCollection("interviews"),
     getCollection("income"),
     getCollection("expenses"),
-    getCollection("budgets"),
+    getCollection("budget"),
+    getCollection("timetable"),
+    getCollection("reminders"),
   ]);
 
   return {
@@ -412,14 +523,16 @@ async function loadTaskbarData() {
     assessments,
     todoList,
     studySessions,
-    diet,
-    screenTime,
+    timetable,
+    reminders,
+
     career: {
       jobPreparation,
       applications,
       savedJobs,
       interviews,
     },
+
     finance: {
       income,
       expenses,
@@ -432,12 +545,19 @@ async function loadTaskbarData() {
 // TODAY DATA HELPERS
 // ============================================================
 
-function getTodayItems(items, possibleDateFields = []) {
-  const today = getTodayLocalDateKey();
+function getTodayItems(
+  items,
+  possibleDateFields = []
+) {
+  const today =
+    getTodayLocalDateKey();
 
   return safeArray(items).filter((item) => {
-    for (const field of possibleDateFields) {
-      const dateKey = getDateKey(item?.[field]);
+    for (
+      const field of possibleDateFields
+    ) {
+      const dateKey =
+        getDateKey(item?.[field]);
 
       if (dateKey === today) {
         return true;
@@ -448,19 +568,35 @@ function getTodayItems(items, possibleDateFields = []) {
   });
 }
 
-function getOverdueItems(items, possibleDateFields = []) {
-  const today = getTodayLocalDateKey();
+function getOverdueItems(
+  items,
+  possibleDateFields = []
+) {
+  const today =
+    getTodayLocalDateKey();
 
   return safeArray(items).filter((item) => {
-    if (isCompleted(item)) return false;
+    if (isCompleted(item)) {
+      return false;
+    }
 
-    for (const field of possibleDateFields) {
-      const dateKey = getDateKey(item?.[field]);
+    for (
+      const field of possibleDateFields
+    ) {
+      const dateKey =
+        getDateKey(item?.[field]);
 
-      if (!dateKey) continue;
+      if (!dateKey) {
+        continue;
+      }
 
       try {
-        return diffInLocalDays(dateKey, today) > 0;
+        return (
+          diffInLocalDays(
+            dateKey,
+            today
+          ) > 0
+        );
       } catch {
         return false;
       }
@@ -475,21 +611,35 @@ function getUpcomingItems(
   possibleDateFields = [],
   days = 3
 ) {
-  const today = getTodayLocalDateKey();
+  const today =
+    getTodayLocalDateKey();
 
   return safeArray(items).filter((item) => {
-    if (isCompleted(item)) return false;
+    if (isCompleted(item)) {
+      return false;
+    }
 
-    for (const field of possibleDateFields) {
-      const dateKey = getDateKey(item?.[field]);
+    for (
+      const field of possibleDateFields
+    ) {
+      const dateKey =
+        getDateKey(item?.[field]);
 
-      if (!dateKey) continue;
+      if (!dateKey) {
+        continue;
+      }
 
       try {
         const difference =
-          diffInLocalDays(today, dateKey);
+          diffInLocalDays(
+            today,
+            dateKey
+          );
 
-        return difference >= 0 && difference <= days;
+        return (
+          difference >= 0 &&
+          difference <= days
+        );
       } catch {
         return false;
       }
@@ -507,7 +657,9 @@ function getItemTitle(
   item,
   fallback = "something"
 ) {
-  if (!item) return fallback;
+  if (!item) {
+    return fallback;
+  }
 
   const fields = [
     "title",
@@ -539,18 +691,18 @@ function getItemTitle(
 // ============================================================
 
 function getWaterStats(water) {
-  const today = getTodayLocalDateKey();
+  const today =
+    getTodayLocalDateKey();
 
-  const todayRecords = safeArray(water).filter(
-    (item) => {
+  const todayRecords =
+    safeArray(water).filter((item) => {
       const dateKey =
         getDateKey(item?.date) ||
         getDateKey(item?.createdAt) ||
         getDateKey(item?.timestamp);
 
       return dateKey === today;
-    }
-  );
+    });
 
   let consumed = 0;
   let target = 0;
@@ -582,7 +734,9 @@ function getWaterStats(water) {
     target,
     percentage: Math.min(
       100,
-      Math.round((consumed / target) * 100)
+      Math.round(
+        (consumed / target) * 100
+      )
     ),
   };
 }
@@ -591,23 +745,29 @@ function getWaterStats(water) {
 // ACTIVITY ANALYSIS
 // ============================================================
 
-function getActivityStats(activities) {
-  const today = getTodayLocalDateKey();
+function getActivityStats(
+  activities
+) {
+  const today =
+    getTodayLocalDateKey();
 
-  const todayActivities = safeArray(
-    activities
-  ).filter((item) => {
-    const dateKey =
-      getDateKey(item?.date) ||
-      getDateKey(item?.createdAt) ||
-      getDateKey(item?.timestamp);
+  const todayActivities =
+    safeArray(activities).filter(
+      (item) => {
+        const dateKey =
+          getDateKey(item?.date) ||
+          getDateKey(item?.createdAt) ||
+          getDateKey(item?.timestamp);
 
-    return dateKey === today;
-  });
+        return dateKey === today;
+      }
+    );
 
   let minutes = 0;
 
-  for (const activity of todayActivities) {
+  for (
+    const activity of todayActivities
+  ) {
     minutes += safeNumber(
       activity?.minutes ??
         activity?.duration ??
@@ -618,7 +778,8 @@ function getActivityStats(activities) {
   return {
     minutes,
     hasActivity:
-      minutes > 0 || todayActivities.length > 0,
+      minutes > 0 ||
+      todayActivities.length > 0,
   };
 }
 
@@ -630,22 +791,26 @@ function getStudyStats(
   studySessions,
   topics
 ) {
-  const today = getTodayLocalDateKey();
+  const today =
+    getTodayLocalDateKey();
 
-  const todaySessions = safeArray(
-    studySessions
-  ).filter((session) => {
-    const dateKey =
-      getDateKey(session?.date) ||
-      getDateKey(session?.startTime) ||
-      getDateKey(session?.createdAt);
+  const todaySessions =
+    safeArray(studySessions).filter(
+      (session) => {
+        const dateKey =
+          getDateKey(session?.date) ||
+          getDateKey(session?.startTime) ||
+          getDateKey(session?.createdAt);
 
-    return dateKey === today;
-  });
+        return dateKey === today;
+      }
+    );
 
   let minutes = 0;
 
-  for (const session of todaySessions) {
+  for (
+    const session of todaySessions
+  ) {
     minutes += safeNumber(
       session?.minutes ??
         session?.duration ??
@@ -654,16 +819,24 @@ function getStudyStats(
   }
 
   const todayCompletedTopics =
-    safeArray(topics).filter((topic) => {
-      if (!isCompleted(topic)) return false;
+    safeArray(topics).filter(
+      (topic) => {
+        if (!isCompleted(topic)) {
+          return false;
+        }
 
-      const dateKey =
-        getDateKey(topic?.completedDate) ||
-        getDateKey(topic?.completedAt) ||
-        getDateKey(topic?.date);
+        const dateKey =
+          getDateKey(
+            topic?.completedDate
+          ) ||
+          getDateKey(
+            topic?.completedAt
+          ) ||
+          getDateKey(topic?.date);
 
-      return dateKey === today;
-    });
+        return dateKey === today;
+      }
+    );
 
   return {
     minutes,
@@ -676,113 +849,56 @@ function getStudyStats(
 }
 
 // ============================================================
-// SCREEN TIME ANALYSIS
-// ============================================================
-
-function getScreenTimeStats(screenTime) {
-  const today = getTodayLocalDateKey();
-
-  const todayRecords = safeArray(
-    screenTime
-  ).filter((item) => {
-    const dateKey =
-      getDateKey(item?.date) ||
-      getDateKey(item?.createdAt);
-
-    return dateKey === today;
-  });
-
-  let minutes = 0;
-
-  for (const record of todayRecords) {
-    minutes += safeNumber(
-      record?.minutes ??
-        record?.duration ??
-        record?.screenTime
-    );
-  }
-
-  return {
-    minutes,
-  };
-}
-
-// ============================================================
-// DIET ANALYSIS
-// ============================================================
-
-function getDietStats(diet) {
-  const today = getTodayLocalDateKey();
-
-  const todayRecords = safeArray(diet).filter(
-    (item) => {
-      const dateKey =
-        getDateKey(item?.date) ||
-        getDateKey(item?.createdAt);
-
-      return dateKey === today;
-    }
-  );
-
-  let sugar = 0;
-  let protein = 0;
-
-  for (const record of todayRecords) {
-    sugar += safeNumber(
-      record?.sugar ??
-        record?.sugarIntake ??
-        record?.sugarGrams
-    );
-
-    protein += safeNumber(
-      record?.protein ??
-        record?.proteinIntake ??
-        record?.proteinGrams
-    );
-  }
-
-  return {
-    sugar,
-    protein,
-  };
-}
-
-// ============================================================
 // CENTRAL TODO ANALYSIS
 // ============================================================
 
 function getTodoStats(todoList) {
-  const today = getTodayLocalDateKey();
+  const today =
+    getTodayLocalDateKey();
 
-  const pending = safeArray(todoList).filter(
-    (item) => !isCompleted(item)
-  );
+  const pending =
+    safeArray(todoList).filter(
+      (item) => !isCompleted(item)
+    );
 
-  const todayPending = pending.filter((item) => {
-    const dateKey =
-      getDateKey(item?.date) ||
-      getDateKey(item?.taskDate) ||
-      getDateKey(item?.dueDate) ||
-      getDateKey(item?.scheduledDate);
+  const todayPending =
+    pending.filter((item) => {
+      const dateKey =
+        getDateKey(item?.date) ||
+        getDateKey(item?.taskDate) ||
+        getDateKey(item?.dueDate) ||
+        getDateKey(
+          item?.scheduledDate
+        );
 
-    return dateKey === today;
-  });
+      return dateKey === today;
+    });
 
-  const overdue = pending.filter((item) => {
-    const dateKey =
-      getDateKey(item?.date) ||
-      getDateKey(item?.taskDate) ||
-      getDateKey(item?.dueDate) ||
-      getDateKey(item?.scheduledDate);
+  const overdue =
+    pending.filter((item) => {
+      const dateKey =
+        getDateKey(item?.date) ||
+        getDateKey(item?.taskDate) ||
+        getDateKey(item?.dueDate) ||
+        getDateKey(
+          item?.scheduledDate
+        );
 
-    if (!dateKey) return false;
+      if (!dateKey) {
+        return false;
+      }
 
-    try {
-      return diffInLocalDays(dateKey, today) > 0;
-    } catch {
-      return false;
-    }
-  });
+      try {
+        return (
+          diffInLocalDays(
+            dateKey,
+            today
+          ) > 0
+        );
+      } catch {
+        return false;
+      }
+    });
 
   return {
     pending,
@@ -796,7 +912,9 @@ function getTodoStats(todoList) {
 // ============================================================
 
 function isImportant(item) {
-  if (!item) return false;
+  if (!item) {
+    return false;
+  }
 
   if (
     item.priority === "high" ||
@@ -814,9 +932,8 @@ function isImportant(item) {
     return true;
   }
 
-  const priorityNumber = safeNumber(
-    item.priority
-  );
+  const priorityNumber =
+    safeNumber(item.priority);
 
   if (priorityNumber >= 8) {
     return true;
@@ -829,30 +946,45 @@ function isImportant(item) {
 // CAREER DATA
 // ============================================================
 
-function getCareerStats(careerData = {}) {
+function getCareerStats(
+  careerData = {}
+) {
   const jobPreparation =
-    safeArray(careerData.jobPreparation);
+    safeArray(
+      careerData.jobPreparation
+    );
 
   const applications =
-    safeArray(careerData.applications);
+    safeArray(
+      careerData.applications
+    );
 
   const savedJobs =
-    safeArray(careerData.savedJobs);
+    safeArray(
+      careerData.savedJobs
+    );
 
   const interviews =
-    safeArray(careerData.interviews);
+    safeArray(
+      careerData.interviews
+    );
 
-  const today = getTodayLocalDateKey();
+  const today =
+    getTodayLocalDateKey();
 
   const duePreparation =
     jobPreparation.filter((item) => {
-      if (isCompleted(item)) return false;
+      if (isCompleted(item)) {
+        return false;
+      }
 
       const dateKey =
         getDateKey(item?.dueDate) ||
         getDateKey(item?.date);
 
-      if (!dateKey) return false;
+      if (!dateKey) {
+        return false;
+      }
 
       try {
         return (
@@ -868,35 +1000,66 @@ function getCareerStats(careerData = {}) {
 
   const followUps =
     applications.filter((item) => {
-      if (isCompleted(item)) return false;
+      if (isCompleted(item)) {
+        return false;
+      }
 
       const dateKey =
-        getDateKey(item?.followUpDate) ||
-        getDateKey(item?.nextFollowUp);
+        getDateKey(
+          item?.followUpDate
+        ) ||
+        getDateKey(
+          item?.nextFollowUp
+        );
 
       return dateKey === today;
     });
 
   const upcomingInterviews =
     interviews.filter((item) => {
-      if (isCompleted(item)) return false;
+      if (isCompleted(item)) {
+        return false;
+      }
 
       const dateKey =
         getDateKey(item?.date) ||
-        getDateKey(item?.interviewDate);
-
-      if (!dateKey) return false;
-
-      try {
-        const days = diffInLocalDays(
-          today,
-          dateKey
+        getDateKey(
+          item?.interviewDate
         );
 
-        return days >= 0 && days <= 2;
+      if (!dateKey) {
+        return false;
+      }
+
+      try {
+        const days =
+          diffInLocalDays(
+            today,
+            dateKey
+          );
+
+        return (
+          days >= 0 &&
+          days <= 2
+        );
       } catch {
         return false;
       }
+    });
+
+  const applicationsToday =
+    applications.filter((item) => {
+      const dateKey =
+        getDateKey(item?.date) ||
+        getDateKey(item?.appliedDate) ||
+        getDateKey(
+          item?.applicationDate
+        ) ||
+        getDateKey(
+          item?.createdAt
+        );
+
+      return dateKey === today;
     });
 
   return {
@@ -904,6 +1067,7 @@ function getCareerStats(careerData = {}) {
     followUps,
     upcomingInterviews,
     savedJobs,
+    applicationsToday,
   };
 }
 
@@ -911,7 +1075,9 @@ function getCareerStats(careerData = {}) {
 // FINANCE DATA
 // ============================================================
 
-function getFinanceStats(financeData = {}) {
+function getFinanceStats(
+  financeData = {}
+) {
   const income =
     safeArray(financeData.income);
 
@@ -935,12 +1101,15 @@ function getFinanceStats(financeData = {}) {
 
   let todayExpenseAmount = 0;
 
-  for (const expense of todayExpenses) {
-    todayExpenseAmount += safeNumber(
-      expense?.amount ??
-        expense?.value ??
-        expense?.cost
-    );
+  for (
+    const expense of todayExpenses
+  ) {
+    todayExpenseAmount +=
+      safeNumber(
+        expense?.amount ??
+          expense?.value ??
+          expense?.cost
+      );
   }
 
   let budgetAmount = 0;
@@ -963,7 +1132,7 @@ function getFinanceStats(financeData = {}) {
 }
 
 // ============================================================
-// SMART CANDIDATE CREATION
+// CANDIDATE CREATION
 // ============================================================
 
 function createCandidate({
@@ -973,6 +1142,7 @@ function createCandidate({
   title,
   body,
   reason,
+  eventKey,
 }) {
   return {
     key,
@@ -981,8 +1151,69 @@ function createCandidate({
     title,
     body,
     reason,
+    eventKey: eventKey || key,
   };
 }
+
+// ============================================================
+// NOTIFICATION TEXT HELPERS
+// ============================================================
+
+function namedMessage(
+  name,
+  withNameText,
+  withoutNameText
+) {
+  return name
+    ? withNameText.replace(
+        /\[Name\]/g,
+        name
+      )
+    : withoutNameText;
+}
+
+function getAssessmentText(
+  name,
+  assessmentName
+) {
+  return namedMessage(
+    name,
+    `📚 [Name], ${assessmentName} is today. You’ve got this! ✨`,
+    `📚 ${assessmentName} is today. You’ve got this! ✨`
+  );
+}
+
+function getAssessmentTimeText(
+  name,
+  assessmentName,
+  time
+) {
+  return namedMessage(
+    name,
+    `⏰ [Name], ${assessmentName} is at ${time}. You’ve got this! ✨`,
+    `⏰ ${assessmentName} is at ${time}. You’ve got this! ✨`
+  );
+}
+
+function getInterviewText(
+  name,
+  interviewName,
+  isToday
+) {
+  return namedMessage(
+    name,
+    isToday
+      ? `💼 [Name], ${interviewName} is today. You’ve got this! ✨`
+      : `💼 [Name], ${interviewName} is tomorrow. A little preparation tonight?`,
+    isToday
+      ? `💼 ${interviewName} is today. You’ve got this! ✨`
+      : `💼 ${interviewName} is tomorrow. A little preparation tonight?`
+  );
+}
+
+// ============================================================
+// APPLICATION / REVIEW HELPERS
+// ============================================================
 
 // ============================================================
 // BUILD SMART CANDIDATES
@@ -998,8 +1229,6 @@ function buildCandidates(data) {
     assessments,
     todoList,
     studySessions,
-    diet,
-    screenTime,
     career,
     finance,
   } = data;
@@ -1008,22 +1237,29 @@ function buildCandidates(data) {
 
   const candidates = [];
 
+  const today =
+    getTodayLocalDateKey();
+
   // ----------------------------------------------------------
-  // 1. IMPORTANT / OVERDUE TODO
+  // 1. IMPORTANT TODO
   // ----------------------------------------------------------
 
   const todoStats =
     getTodoStats(todoList);
 
   const importantTodo =
-    todoStats.overdue.find(isImportant) ||
-    todoStats.todayPending.find(isImportant);
+    todoStats.todayPending.find(
+      isImportant
+    ) ||
+    todoStats.overdue.find(
+      isImportant
+    );
 
   if (importantTodo) {
     const taskName =
       getItemTitle(
         importantTodo,
-        "important task"
+        "one small thing"
       );
 
     candidates.push(
@@ -1031,11 +1267,23 @@ function buildCandidates(data) {
         key: "important-task",
         type: "task",
         priority: 100,
-        title:
-          `🌟 ${name}, one important thing is waiting`,
-        body:
-          `${taskName} needs your attention. Take it one step at a time — you've got this. 💪✨`,
+
+        title: namedMessage(
+          name,
+          `🌱 [Name], one tiny win?`,
+          "🌱 One tiny win?"
+        ),
+
+        body: namedMessage(
+          name,
+          `✨ [Name], shall we turn "${taskName}" into a little win?`,
+          `✨ Shall we turn "${taskName}" into a little win?`
+        ),
+
         reason: "important task",
+
+        eventKey:
+          `important-task-${taskName}`,
       })
     );
   }
@@ -1048,25 +1296,40 @@ function buildCandidates(data) {
     const task =
       todoStats.overdue[0];
 
+    const taskName =
+      getItemTitle(
+        task,
+        "One little thing"
+      );
+
     candidates.push(
       createCandidate({
         key: "overdue-task",
         type: "task",
         priority: 95,
-        title:
-          `💙 ${name}, something is still waiting`,
-        body:
-          `${getItemTitle(
-            task,
-            "A pending task"
-          )} is overdue. No pressure — just take the next small step. 🌱`,
+
+        title: namedMessage(
+          name,
+          `🌱 [Name], one small step?`,
+          "🌱 One small step?"
+        ),
+
+        body: namedMessage(
+          name,
+          `🌱 [Name], "${taskName}" is still waiting. Let's give it a little time.`,
+          `🌱 "${taskName}" is still waiting. Let's give it a little time.`
+        ),
+
         reason: "overdue task",
+
+        eventKey:
+          `overdue-task-${taskName}`,
       })
     );
   }
 
   // ----------------------------------------------------------
-  // 3. TODAY TODO
+  // 3. TODAY TASK
   // ----------------------------------------------------------
 
   if (
@@ -1075,19 +1338,34 @@ function buildCandidates(data) {
     const task =
       todoStats.todayPending[0];
 
+    const taskName =
+      getItemTitle(
+        task,
+        "one small thing"
+      );
+
     candidates.push(
       createCandidate({
         key: "today-task",
         type: "task",
         priority: 90,
-        title:
-          `🌟 ${name}, a little task is waiting`,
-        body:
-          `${getItemTitle(
-            task,
-            "One task"
-          )} is on today's list. Finish one thing and enjoy that small win. ✨`,
+
+        title: namedMessage(
+          name,
+          `👀 Psst, [Name]…`,
+          "👀 Psst…"
+        ),
+
+        body: namedMessage(
+          name,
+          `✨ [Name], shall we turn "${taskName}" into a little win?`,
+          `✨ Shall we turn "${taskName}" into a little win?`
+        ),
+
         reason: "today task",
+
+        eventKey:
+          `today-task-${taskName}`,
       })
     );
   }
@@ -1100,34 +1378,94 @@ function buildCandidates(data) {
     getCareerStats(career);
 
   if (
-    careerStats.upcomingInterviews.length > 0
+    careerStats.upcomingInterviews
+      .length > 0
   ) {
     const interview =
-      careerStats.upcomingInterviews[0];
+      careerStats
+        .upcomingInterviews[0];
 
     const interviewDate =
-      getDateKey(interview?.date) ||
+      getDateKey(
+        interview?.date
+      ) ||
       getDateKey(
         interview?.interviewDate
       );
 
-    let body =
-      "Your interview is coming up. A little preparation today can make tomorrow easier. 💼✨";
+    let days = null;
 
     if (interviewDate) {
-      const days =
-        diffInLocalDays(
-          getTodayLocalDateKey(),
-          interviewDate
-        );
-
-      if (days === 0) {
-        body =
-          "Your interview is today. Take a breath, trust your preparation, and do your best. 💼❤️";
-      } else if (days === 1) {
-        body =
-          "Your interview is tomorrow. Give yourself a calm preparation session today. 💼✨";
+      try {
+        days =
+          diffInLocalDays(
+            today,
+            interviewDate
+          );
+      } catch {
+        days = null;
       }
+    }
+
+    const company =
+      interview?.company ||
+      interview?.companyName ||
+      interview?.organization ||
+      interview?.employer;
+
+    const interviewTitle =
+      getItemTitle(
+        interview,
+        company || "Your interview"
+      );
+
+    const interviewName =
+      company &&
+      interviewTitle !== company
+        ? `${company} — ${interviewTitle}`
+        : interviewTitle;
+
+    let title;
+    let body;
+
+    if (days === 0) {
+      title = namedMessage(
+        name,
+        `💼 [Name], you've got this today!`,
+        "💼 You've got this today!"
+      );
+
+      body =
+        getInterviewText(
+          name,
+          interviewName,
+          true
+        );
+    } else if (days === 1) {
+      title = namedMessage(
+        name,
+        `💼 [Name], tomorrow's little mission`,
+        "💼 Tomorrow's little mission"
+      );
+
+      body =
+        getInterviewText(
+          name,
+          interviewName,
+          false
+        );
+    } else {
+      title = namedMessage(
+        name,
+        `💼 [Name], a little career step`,
+        "💼 A little career step"
+      );
+
+      body = namedMessage(
+        name,
+        `✨ [Name], a little preparation today can make tomorrow easier.`,
+        "✨ A little preparation today can make tomorrow easier."
+      );
     }
 
     candidates.push(
@@ -1135,10 +1473,15 @@ function buildCandidates(data) {
         key: "career-interview",
         type: "career",
         priority: 98,
-        title:
-          `💼 ${name}, your career goal needs a little attention`,
+
+        title,
         body,
-        reason: "upcoming interview",
+
+        reason:
+          "upcoming interview",
+
+        eventKey:
+          `interview-${interview.id || interviewName}-${interviewDate}`,
       })
     );
   }
@@ -1150,17 +1493,38 @@ function buildCandidates(data) {
   if (
     careerStats.followUps.length > 0
   ) {
+    const followUp =
+      careerStats.followUps[0];
+
+    const applicationName =
+      getItemTitle(
+        followUp,
+        "your application"
+      );
+
     candidates.push(
       createCandidate({
         key: "career-followup",
         type: "career",
         priority: 94,
-        title:
-          `💼 ${name}, there's a career follow-up today`,
-        body:
-          "Take a few minutes to check your application follow-up. Small actions can keep opportunities moving. 🚀",
+
+        title: namedMessage(
+          name,
+          `💼 [Name], one little career step`,
+          "💼 One little career step"
+        ),
+
+        body: namedMessage(
+          name,
+          `🚀 [Name], "${applicationName}" has a follow-up today. A tiny check-in could keep things moving.`,
+          `🚀 "${applicationName}" has a follow-up today. A tiny check-in could keep things moving.`
+        ),
+
         reason:
           "application follow-up",
+
+        eventKey:
+          `followup-${followUp.id || applicationName}`,
       })
     );
   }
@@ -1175,20 +1539,35 @@ function buildCandidates(data) {
     const item =
       careerStats.duePreparation[0];
 
+    const preparationName =
+      getItemTitle(
+        item,
+        "your career preparation"
+      );
+
     candidates.push(
       createCandidate({
         key: "career-preparation",
         type: "career",
         priority: 88,
-        title:
-          `🚀 ${name}, your future self is waiting`,
-        body:
-          `${getItemTitle(
-            item,
-            "Your job preparation"
-          )} is due. Even 20 focused minutes can move you forward. 💼✨`,
+
+        title: namedMessage(
+          name,
+          `🚀 [Name], one tiny career win?`,
+          "🚀 One tiny career win?"
+        ),
+
+        body: namedMessage(
+          name,
+          `💼 [Name], ${preparationName} is ready for a little attention.`,
+          `💼 ${preparationName} is ready for a little attention.`
+        ),
+
         reason:
           "career preparation",
+
+        eventKey:
+          `career-preparation-${item.id || preparationName}`,
       })
     );
   }
@@ -1200,7 +1579,10 @@ function buildCandidates(data) {
   const todayAssessments =
     getTodayItems(
       assessments,
-      ["date", "scheduledDate"]
+      [
+        "date",
+        "scheduledDate",
+      ]
     ).filter(isPending);
 
   if (
@@ -1209,20 +1591,52 @@ function buildCandidates(data) {
     const assessment =
       todayAssessments[0];
 
+    const assessmentName =
+      getItemTitle(
+        assessment,
+        "Your assessment"
+      );
+
+    const assessmentTime =
+      assessment?.time ||
+      assessment?.scheduledTime ||
+      assessment?.startTime;
+
+    const body =
+      assessmentTime
+        ? getAssessmentTimeText(
+            name,
+            assessmentName,
+            assessmentTime
+          )
+        : getAssessmentText(
+            name,
+            assessmentName
+          );
+
     candidates.push(
       createCandidate({
         key: "assessment",
-        type: "study",
-        priority: 92,
-        title:
-          `📚 ${name}, you have an assessment today`,
-        body:
-          `${getItemTitle(
-            assessment,
-            "Your assessment"
-          )} is waiting. Stay calm, focus, and give it your best. ✨`,
+
+        // IMPORTANT:
+        // Assessment is separate from normal study.
+        type: "assessment",
+
+        priority: 110,
+
+        title: namedMessage(
+          name,
+          `📚 [Name], you've got this!`,
+          "📚 You've got this!"
+        ),
+
+        body,
+
         reason:
           "today assessment",
+
+        eventKey:
+          `assessment-${assessment.id || assessmentName}-${today}`,
       })
     );
   }
@@ -1249,12 +1663,24 @@ function buildCandidates(data) {
           key: "study",
           type: "study",
           priority: 80,
-          title:
-            `📚✨ ${name}, your future self is counting on you`,
-          body:
-            "You don't need a huge session. Just start with 20 focused minutes. One small step is enough for today. ❤️",
+
+          title: namedMessage(
+            name,
+            `📚 [Name], 20 minutes?`,
+            "📚 20 minutes?"
+          ),
+
+          body: namedMessage(
+            name,
+            `💫 [Name], you + 20 focused minutes = a pretty good day.`,
+            "💫 You + 20 focused minutes = a pretty good day."
+          ),
+
           reason:
             "no study recorded today",
+
+          eventKey:
+            `study-${today}`,
         })
       );
     }
@@ -1281,20 +1707,35 @@ function buildCandidates(data) {
     const goal =
       goalsDue[0];
 
+    const goalName =
+      getItemTitle(
+        goal,
+        "your goal"
+      );
+
     candidates.push(
       createCandidate({
         key: "goal",
         type: "goal",
         priority: 82,
-        title:
-          `🎯 ${name}, your goal deserves a little attention`,
-        body:
-          `${getItemTitle(
-            goal,
-            "Your goal"
-          )} is close to its target date. A small action today can make a difference. 🌱`,
+
+        title: namedMessage(
+          name,
+          `🎯 [Name], your goal called.`,
+          "🎯 Your goal called."
+        ),
+
+        body: namedMessage(
+          name,
+          `🎯 [Name], it says, "Keep going." One tiny step is enough.`,
+          `🎯 It says, "Keep going." One tiny step is enough.`
+        ),
+
         reason:
           "goal deadline",
+
+        eventKey:
+          `goal-${goal.id || goalName}`,
       })
     );
   }
@@ -1308,21 +1749,31 @@ function buildCandidates(data) {
 
   if (
     waterStats.target > 0 &&
-    waterStats.percentage < 60
+    waterStats.percentage < 40
   ) {
     candidates.push(
       createCandidate({
         key: "water",
         type: "wellness",
         priority: 70,
-        title:
-          `💧 ${name}, your body is waiting for a little water`,
-        body:
-          `You've had about ${Math.round(
-            waterStats.consumed
-          )} ml so far. Take a small water break — you'll feel better. 💙`,
+
+        title: namedMessage(
+          name,
+          `💧 Hey [Name]…`,
+          "💧 Hey…"
+        ),
+
+        body: namedMessage(
+          name,
+          `😄 [Name], your water bottle is feeling ignored.`,
+          "😄 Your water bottle is feeling ignored."
+        ),
+
         reason:
-          "low water intake",
+          "water intake below 40% of today's target",
+
+        eventKey:
+          `water-${today}`,
       })
     );
   }
@@ -1344,70 +1795,27 @@ function buildCandidates(data) {
         key: "activity",
         type: "wellness",
         priority: 65,
-        title:
-          `❤️ ${name}, give yourself a little movement`,
+
+        title: namedMessage(
+          name,
+          `🚶 [Name], tiny movement?`,
+          "🚶 Tiny movement?"
+        ),
+
         body:
-          "A few minutes of walking or stretching can be enough. Your body deserves some care today. 🏃✨",
+          "Your body has been waiting for a tiny adventure. A little walk?",
+
         reason:
           "no activity recorded today",
+
+        eventKey:
+          `activity-${today}`,
       })
     );
   }
 
   // ----------------------------------------------------------
-  // 12. DIET / SUGAR
-  // ----------------------------------------------------------
-
-  const dietStats =
-    getDietStats(diet);
-
-  if (
-    dietStats.sugar >= 10
-  ) {
-    candidates.push(
-      createCandidate({
-        key: "diet-sugar",
-        type: "wellness",
-        priority: 55,
-        title:
-          `🥗 ${name}, let's take care of today's choices`,
-        body:
-          "Your sugar intake has reached today's target. A lighter choice for the next meal can help you stay balanced. 💚",
-        reason:
-          "sugar target reached",
-      })
-    );
-  }
-
-  // ----------------------------------------------------------
-  // 13. SCREEN TIME
-  // ----------------------------------------------------------
-
-  const screenStats =
-    getScreenTimeStats(
-      screenTime
-    );
-
-  if (
-    screenStats.minutes >= 180
-  ) {
-    candidates.push(
-      createCandidate({
-        key: "screen-time",
-        type: "wellness",
-        priority: 50,
-        title:
-          `👀 ${name}, your eyes deserve a little break`,
-        body:
-          "You've spent quite a while on screens today. Step away for a few minutes, stretch, and come back refreshed. 💙",
-        reason:
-          "high screen time",
-      })
-    );
-  }
-
-  // ----------------------------------------------------------
-  // 14. FINANCE
+  // 12. FINANCE
   // ----------------------------------------------------------
 
   const financeStats =
@@ -1423,198 +1831,469 @@ function buildCandidates(data) {
         key: "finance-budget",
         type: "finance",
         priority: 45,
-        title:
-          `💰 ${name}, keep an eye on today's spending`,
+
+        title: namedMessage(
+          name,
+          `💰 [Name], a tiny money check?`,
+          "💰 A tiny money check?"
+        ),
+
         body:
-          "Today's expenses have crossed the available budget amount. Take a quick look at your spending when you have a moment. 📊",
+          "A quick look at today's spending could feel good. 📊",
+
         reason:
           "budget exceeded",
+
+        eventKey:
+          `finance-${today}`,
       })
     );
   }
 
   // ----------------------------------------------------------
+  // 13. JOB APPLICATION
+  // ----------------------------------------------------------
+
+  if (
+    careerStats.applicationsToday
+      .length === 0 &&
+    careerStats.savedJobs.length > 0
+  ) {
+    const savedJob =
+      careerStats.savedJobs.find(
+        (job) => !isCompleted(job)
+      );
+
+    if (savedJob) {
+      const jobName =
+        getItemTitle(
+          savedJob,
+          "one job"
+        );
+
+      candidates.push(
+        createCandidate({
+          key: "job-application",
+          type: "career-application",
+          priority: 87,
+
+          title: namedMessage(
+            name,
+            `💼 [Name], 20 minutes for your future?`,
+            "💼 20 minutes for your future?"
+          ),
+
+          body: namedMessage(
+            name,
+            `🚀 [Name], find one job and make one small move.`,
+            "🚀 Find one job and make one small move."
+          ),
+
+          reason:
+            "no job application today",
+
+          eventKey:
+            `job-application-${today}-${jobName}`,
+        })
+      );
+    }
+  }
+
+  // ----------------------------------------------------------
+  // 14. DAILY REVIEW / INSIGHTS
+  // ----------------------------------------------------------
+  // Reports/Insights does not currently store a Firestore field
+  // that means "review completed today". Do not guess this with
+  // localStorage keys. The review reminder is therefore omitted
+  // until the Reports page has an explicit persisted state.
+
+  // ----------------------------------------------------------
+  // TIMETABLE / MANUAL REMINDER DUPLICATION PROTECTION
+  // ----------------------------------------------------------
+  // Timetable.jsx already owns timetable-start notifications.
+  // Reminders.jsx already owns user-created reminder notifications.
+  // Therefore the smart service intentionally does NOT create
+  // duplicate notifications for either system.
+
+  // ----------------------------------------------------------
   // 15. POSITIVE BACKUP
   // ----------------------------------------------------------
+  //
+  // This candidate is intentionally low priority.
+  // It should only be selected when there is no
+  // higher-value notification for the current window.
+  //
+
+  const hasMeaningfulProgress =
+    todoStats.todayPending.length === 0 &&
+    todoStats.overdue.length === 0 &&
+    studyStats.hasStudy &&
+    activityStats.hasActivity;
 
   candidates.push(
     createCandidate({
       key: "positive",
       type: "motivation",
-      priority: 20,
-      title:
-        `✨ ${name}, you're doing better than you think`,
-      body:
-        "Keep going gently. You don't have to finish everything today — just make one meaningful step. ❤️",
+      priority:
+        hasMeaningfulProgress
+          ? 60
+          : 20,
+
+      title: namedMessage(
+        name,
+        `✨ Look at that, [Name].`,
+        "✨ Look at that."
+      ),
+
+      body: namedMessage(
+        name,
+        `💙 [Name], you've already made some progress today.`,
+        "💙 You've already made some progress today."
+      ),
+
       reason:
         "positive encouragement",
+
+      eventKey:
+        `positive-${today}`,
     })
   );
 
   return candidates;
 }
-
 // ============================================================
-// CHOOSE NOTIFICATION FOR A WINDOW
+// CANDIDATE SELECTION
 // ============================================================
 
 function chooseCandidate(
   candidates,
-  usedTypes,
-  windowKey
+  windowKey,
+  usedEvents = new Set()
 ) {
-  const available = candidates
-    .filter(
-      (candidate) =>
-        !usedTypes.has(candidate.type)
-    )
-    .sort(
-      (a, b) =>
-        b.priority - a.priority
+  const available =
+    safeArray(candidates).filter(
+      (candidate) => {
+        if (!candidate) {
+          return false;
+        }
+
+        if (
+          !candidate.eventKey
+        ) {
+          return false;
+        }
+
+        if (
+          usedEvents.has(
+            candidate.eventKey
+          )
+        ) {
+          return false;
+        }
+
+        if (
+          hasSentToday(
+            candidate.eventKey
+          )
+        ) {
+          return false;
+        }
+
+        // Job application reminder is specifically
+        // a night opportunity.
+        if (
+          candidate.key ===
+            "job-application" &&
+          windowKey !== "night"
+        ) {
+          return false;
+        }
+
+        // Daily review/insights is specifically
+        // a night opportunity.
+        if (
+          candidate.key ===
+            "daily-review" &&
+          windowKey !== "night"
+        ) {
+          return false;
+        }
+
+        // Positive messages are useful mainly when
+        // the day is winding down.
+        if (
+          candidate.key ===
+            "positive" &&
+          windowKey !== "evening" &&
+          windowKey !== "night"
+        ) {
+          return false;
+        }
+
+        return true;
+      }
     );
 
-  // Morning:
-  // Prefer important productivity/career/study.
-  if (windowKey === "morning") {
-    const preferred =
-      available.find(
-        (item) =>
-          item.type === "task" ||
-          item.type === "career" ||
-          item.type === "study" ||
-          item.type === "goal"
+  if (
+    available.length === 0
+  ) {
+    return null;
+  }
+
+  // ----------------------------------------------------------
+  // TIME-SENSITIVE PRIORITY
+  // ----------------------------------------------------------
+  //
+  // These should not be pushed aside simply because
+  // another category is preferred by the current window.
+  //
+
+  const highPriority =
+    available
+      .filter(
+        (candidate) =>
+          candidate.priority >= 95
+      )
+      .sort(
+        (a, b) =>
+          b.priority - a.priority
       );
 
-    if (preferred) {
-      return preferred;
+  if (
+    highPriority.length > 0
+  ) {
+    return highPriority[0];
+  }
+
+  // ----------------------------------------------------------
+  // WINDOW PREFERENCES
+  // ----------------------------------------------------------
+
+  const preferences = {
+    morning: [
+      "assessment",
+      "career",
+      "task",
+      "goal",
+      "study",
+    ],
+
+    "late-morning": [
+      "wellness",
+      "task",
+      "study",
+      "assessment",
+      "goal",
+    ],
+
+    afternoon: [
+      "task",
+      "study",
+      "career",
+      "goal",
+      "wellness",
+      "assessment",
+    ],
+
+    evening: [
+      "task",
+      "career",
+      "goal",
+      "study",
+      "wellness",
+      "motivation",
+    ],
+
+    night: [
+      "career-application",
+      "career",
+      "task",
+      "review",
+      "goal",
+      "study",
+      "wellness",
+      "motivation",
+      "finance",
+    ],
+  };
+
+  const preferredTypes =
+    preferences[
+      windowKey
+    ] || [];
+
+  for (
+    const type of preferredTypes
+  ) {
+    const matching =
+      available
+        .filter(
+          (candidate) =>
+            candidate.type === type
+        )
+        .sort(
+          (a, b) =>
+            b.priority - a.priority
+        );
+
+    if (
+      matching.length > 0
+    ) {
+      return matching[0];
     }
   }
 
-  // Afternoon:
-  // Prefer wellness or unfinished work.
-  if (windowKey === "afternoon") {
-    const preferred =
-      available.find(
-        (item) =>
-          item.type === "wellness" ||
-          item.type === "task" ||
-          item.type === "study"
-      );
+  // ----------------------------------------------------------
+  // FINAL FALLBACK
+  // ----------------------------------------------------------
 
-    if (preferred) {
-      return preferred;
-    }
-  }
-
-  // Evening:
-  // Prefer unfinished work, wellness, then positive.
-  if (windowKey === "evening") {
-    const preferred =
-      available.find(
-        (item) =>
-          item.type === "task" ||
-          item.type === "career" ||
-          item.type === "goal" ||
-          item.type === "wellness" ||
-          item.type === "finance" ||
-          item.type === "motivation"
-      );
-
-    if (preferred) {
-      return preferred;
-    }
-  }
-
-  return available[0] || null;
+  return (
+    available
+      .slice()
+      .sort(
+        (a, b) =>
+          b.priority - a.priority
+      )[0] || null
+  );
 }
 
 // ============================================================
-// BUILD TODAY'S NOTIFICATION PLAN
+// BUILD TODAY'S SMART NOTIFICATION PLAN
 // ============================================================
 
 export async function buildSmartNotificationPlan() {
-  if (!(await areSmartNotificationsEnabled())) {
+  const enabled =
+    await areSmartNotificationsEnabled();
+
+  if (!enabled) {
     return [];
   }
 
-  try {
-    const data =
-      await loadTaskbarData();
+  const data =
+    await loadTaskbarData();
 
-    const candidates =
-      buildCandidates(data);
+  const candidates =
+    buildCandidates(data);
 
-    const plan = [];
-    const usedTypes = new Set();
+  const today =
+    getTodayLocalDateKey();
 
-    for (
-      const window of DAILY_WINDOWS
+  const now =
+    new Date();
+
+  const plan = [];
+
+  // Used only during this planning pass.
+  //
+  // IMPORTANT:
+  // We do NOT use candidate.type here.
+  //
+  // Different events of the same type are allowed.
+  // Example:
+  // - water at 11 AM
+  // - activity at 2 PM
+  //
+  // Only the exact same event is blocked.
+  const usedEvents =
+    new Set();
+
+  for (
+    const window of DAILY_WINDOWS
+  ) {
+    const scheduledDate =
+      new Date();
+
+    scheduledDate.setHours(
+      window.hour,
+      window.minute,
+      0,
+      0
+    );
+
+    // Past opportunity windows are skipped.
+    if (
+      scheduledDate <= now
     ) {
-      const candidate =
-        chooseCandidate(
-          candidates,
-          usedTypes,
-          window.key
-        );
-
-      if (!candidate) {
-        continue;
-      }
-
-      plan.push({
-        window: window.key,
-        hour: window.hour,
-        minute: window.minute,
-        ...candidate,
-      });
-
-      usedTypes.add(
-        candidate.type
-      );
+      continue;
     }
 
-    return plan.slice(
-      0,
-      MAX_NOTIFICATIONS_PER_DAY
-    );
-  } catch (error) {
-    console.error(
-      "TASKBAR smart notification plan error:",
-      error
+    const candidate =
+      chooseCandidate(
+        candidates,
+        window.key,
+        usedEvents
+      );
+
+    if (!candidate) {
+      continue;
+    }
+
+    usedEvents.add(
+      candidate.eventKey
     );
 
-    return [];
+    plan.push({
+      ...candidate,
+
+      windowKey:
+        window.key,
+
+      dateKey:
+        today,
+
+      scheduledDate,
+    });
+
+    if (
+      plan.length >=
+      MAX_NOTIFICATIONS_PER_DAY
+    ) {
+      break;
+    }
   }
+
+  return plan;
 }
 
 // ============================================================
-// GET NEXT DATE/TIME FOR A DAILY WINDOW
+// GET WINDOW DATE
 // ============================================================
 
-function getWindowDate(window) {
-  const now = new Date();
+function getWindowDate(
+  windowKey,
+  dateKey = getTodayLocalDateKey()
+) {
+  const window =
+    DAILY_WINDOWS.find(
+      (item) =>
+        item.key === windowKey
+    );
 
-  const scheduled = new Date();
+  if (!window) {
+    return null;
+  }
 
-  scheduled.setHours(
+  const date =
+    new Date(
+      `${dateKey}T00:00:00`
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return null;
+  }
+
+  date.setHours(
     window.hour,
     window.minute,
     0,
     0
   );
 
-  // If today's window has already passed,
-  // schedule it for tomorrow.
-  if (
-    scheduled.getTime() <=
-    now.getTime()
-  ) {
-    scheduled.setDate(
-      scheduled.getDate() + 1
-    );
-  }
-
-  return scheduled;
+  return date;
 }
 
 // ============================================================
@@ -1622,113 +2301,99 @@ function getWindowDate(window) {
 // ============================================================
 
 export async function scheduleSmartNotification(
-  notification,
-  dateOverride = null
+  notification
 ) {
+  if (!notification) {
+    return false;
+  }
+
   if (!isNativeApp()) {
     return false;
   }
 
-  if (!(await areSmartNotificationsEnabled())) {
+  const permission =
+    await requestSmartNotificationPermission();
+
+  if (!permission.granted) {
     return false;
   }
 
+  const date =
+    notification.scheduledDate instanceof
+    Date
+      ? notification.scheduledDate
+      : new Date(
+          notification.scheduledDate
+        );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    date <= new Date()
+  ) {
+    return false;
+  }
+
+  const notificationId =
+    getSmartNotificationId(
+      notification.windowKey,
+      notification.dateKey
+    );
+
   try {
-    const permission =
-      await requestSmartNotificationPermission();
+    await LocalNotifications.schedule(
+      {
+        notifications: [
+          {
+            id: notificationId,
 
-    if (!permission.granted) {
-      return false;
-    }
+            title:
+              notification.title,
 
-    const window =
-      DAILY_WINDOWS.find(
-        (item) =>
-          item.key === notification.window
-      );
+            body:
+              notification.body,
 
-    if (!window) {
-      return false;
-    }
+            schedule: {
+              at: date,
+              allowWhileIdle: true,
+            },
 
-    let scheduledDate;
+            extra: {
+              type:
+                "taskbar-smart-notification",
 
-    if (dateOverride) {
-      scheduledDate =
-        new Date(dateOverride);
-    } else {
-      scheduledDate =
-        getWindowDate(window);
-    }
+              eventKey:
+                notification.eventKey,
 
-    if (
-      Number.isNaN(
-        scheduledDate.getTime()
-      )
-    ) {
-      return false;
-    }
+              notificationType:
+                notification.type,
 
-    if (
-      scheduledDate.getTime() <=
-      Date.now()
-    ) {
-      return false;
-    }
+              windowKey:
+                notification.windowKey,
 
-    const dateKey =
-      getDateKey(scheduledDate);
+              reason:
+                notification.reason,
 
-    const notificationId =
-      getSmartNotificationId(
-        notification.window,
-        dateKey
-      );
-
-    await LocalNotifications.cancel({
-      notifications: [
-        {
-          id: notificationId,
-        },
-      ],
-    }).catch(() => {});
-
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: notificationId,
-
-          title:
-            notification.title,
-
-          body:
-            notification.body,
-
-          schedule: {
-            at: scheduledDate,
-            allowWhileIdle: true,
+              dateKey:
+                notification.dateKey,
+            },
           },
+        ],
+      }
+    );
 
-          sound: undefined,
-
-          extra: {
-            type:
-              "taskbar-smart-notification",
-            window:
-              notification.window,
-            reason:
-              notification.reason,
-            date:
-              dateKey,
-          },
-        },
-      ],
-    });
+    markScheduled(notification.eventKey);
 
     return true;
   } catch (error) {
     console.error(
-      "TASKBAR smart notification scheduling error:",
+      "TASKBAR smart notification schedule error:",
       error
     );
 
@@ -1737,7 +2402,7 @@ export async function scheduleSmartNotification(
 }
 
 // ============================================================
-// CANCEL ALL SMART NOTIFICATIONS
+// CANCEL SMART NOTIFICATIONS
 // ============================================================
 
 export async function cancelSmartNotifications() {
@@ -1751,10 +2416,11 @@ export async function cancelSmartNotifications() {
 
     const smartNotifications =
       safeArray(
-        pending.notifications
+        pending?.notifications
       ).filter(
         (notification) =>
-          notification?.extra?.type ===
+          notification?.extra
+            ?.type ===
           "taskbar-smart-notification"
       );
 
@@ -1764,19 +2430,28 @@ export async function cancelSmartNotifications() {
       return true;
     }
 
-    await LocalNotifications.cancel({
-      notifications:
-        smartNotifications.map(
-          (notification) => ({
-            id: notification.id,
-          })
-        ),
-    });
+    await LocalNotifications.cancel(
+      {
+        notifications:
+          smartNotifications.map(
+            (notification) => ({
+              id:
+                notification.id,
+            })
+          ),
+      }
+    );
+
+    for (const notification of smartNotifications) {
+      unmarkScheduled(
+        notification?.extra?.eventKey
+      );
+    }
 
     return true;
   } catch (error) {
     console.error(
-      "TASKBAR smart notification cancellation error:",
+      "TASKBAR smart notification cancel error:",
       error
     );
 
@@ -1789,207 +2464,137 @@ export async function cancelSmartNotifications() {
 // ============================================================
 
 export async function scheduleTodaySmartNotifications() {
-  if (!isNativeApp()) {
-    return {
-      scheduled: 0,
-      plan: [],
-    };
+  const enabled =
+    await areSmartNotificationsEnabled();
+
+  if (!enabled) {
+    return [];
   }
 
-  if (!(await areSmartNotificationsEnabled())) {
-    return {
-      scheduled: 0,
-      plan: [],
-    };
+  const plan =
+    await buildSmartNotificationPlan();
+
+  if (
+    plan.length === 0
+  ) {
+    return [];
   }
 
-  try {
-    const permission =
-      await requestSmartNotificationPermission();
+  const scheduled = [];
 
-    if (!permission.granted) {
-      return {
-        scheduled: 0,
-        plan: [],
-      };
-    }
-
-    const plan =
-      await buildSmartNotificationPlan();
-
-    const now = new Date();
-
-    let scheduledCount = 0;
-
-    for (
-      const notification of plan
-    ) {
-      const window =
-        DAILY_WINDOWS.find(
-          (item) =>
-            item.key ===
-            notification.window
-        );
-
-      if (!window) {
-        continue;
-      }
-
-      const scheduled =
-        new Date();
-
-      scheduled.setHours(
-        window.hour,
-        window.minute,
-        0,
-        0
+  for (
+    const notification of plan
+  ) {
+    const success =
+      await scheduleSmartNotification(
+        notification
       );
 
-      // Only schedule windows that
-      // haven't passed today.
-      if (
-        scheduled.getTime() <=
-        now.getTime()
-      ) {
-        continue;
-      }
-
-      const success =
-        await scheduleSmartNotification(
-          notification,
-          scheduled
-        );
-
-      if (success) {
-        scheduledCount += 1;
-      }
+    if (success) {
+      scheduled.push(
+        notification
+      );
     }
-
-    return {
-      scheduled:
-        scheduledCount,
-      plan,
-    };
-  } catch (error) {
-    console.error(
-      "TASKBAR today's smart notification setup error:",
-      error
-    );
-
-    return {
-      scheduled: 0,
-      plan: [],
-    };
   }
+
+  return scheduled;
 }
 
 // ============================================================
-// RESCHEDULE SMART NOTIFICATIONS
+// REFRESH SMART NOTIFICATIONS
 // ============================================================
 //
-// Call this after important TASKBAR data changes.
-//
+// Call this after meaningful TASKBAR data changes.
 // Examples:
-// - task completed
-// - new goal added
-// - water updated
-// - study session added
+// - task completed/created
+// - water logged
+// - activity recorded
+// - study session completed
+// - goal changed
+// - career data changed
+// - assessment changed
 //
-// This cancels old smart notifications and builds a fresh
-// plan using the latest TASKBAR data.
-// ============================================================
+// This keeps future notifications aligned with
+// the latest available TASKBAR data.
+//
 
 export async function refreshSmartNotifications() {
   if (!isNativeApp()) {
-    return {
-      scheduled: 0,
-      plan: [],
-    };
+    return [];
   }
 
-  if (!(await areSmartNotificationsEnabled())) {
+  const enabled =
+    await areSmartNotificationsEnabled();
+
+  if (!enabled) {
     await cancelSmartNotifications();
 
-    return {
-      scheduled: 0,
-      plan: [],
-    };
+    return [];
   }
 
   try {
     await cancelSmartNotifications();
-
-    return await scheduleTodaySmartNotifications();
-  } catch (error) {
-    console.error(
-      "TASKBAR smart notification refresh error:",
-      error
-    );
-
-    return {
-      scheduled: 0,
-      plan: [],
-    };
+  } catch {
+    // Continue and rebuild the plan.
   }
+
+  return scheduleTodaySmartNotifications();
 }
 
 // ============================================================
 // INITIALIZE SMART NOTIFICATIONS
-// ============================================================
-//
-// This is the main function the application will call.
-//
-// It:
-// 1. Checks native Android.
-// 2. Checks the Settings notification switch.
-// 3. Requests notification permission.
-// 4. Cancels stale smart notifications.
-// 5. Reads current TASKBAR data.
-// 6. Creates a fresh intelligent plan.
-// 7. Schedules up to 3 useful notifications.
 // ============================================================
 
 export async function initializeSmartNotifications() {
   if (!isNativeApp()) {
     return {
       enabled: false,
-      scheduled: 0,
-      plan: [],
+      native: false,
+      scheduled: [],
     };
   }
 
-  if (!(await areSmartNotificationsEnabled())) {
+  const enabled =
+    await areSmartNotificationsEnabled();
+
+  if (!enabled) {
     await cancelSmartNotifications();
 
     return {
       enabled: false,
-      scheduled: 0,
-      plan: [],
+      native: true,
+      scheduled: [],
+    };
+  }
+
+  const permission =
+    await requestSmartNotificationPermission();
+
+  if (!permission.granted) {
+    return {
+      enabled: true,
+      native: true,
+      permissionGranted: false,
+      scheduled: [],
     };
   }
 
   try {
-    const permission =
-      await requestSmartNotificationPermission();
+    registerSmartNotificationListener();
+    await syncDeliveredSmartNotifications();
 
-    if (!permission.granted) {
-      return {
-        enabled: false,
-        scheduled: 0,
-        plan: [],
-      };
-    }
-
-    // Remove old smart notifications first.
+    // Remove previously scheduled smart
+    // notifications before creating today's plan.
     await cancelSmartNotifications();
 
-    // Build a fresh plan from current TASKBAR data.
-    const result =
+    const scheduled =
       await scheduleTodaySmartNotifications();
 
     return {
       enabled: true,
-      ...result,
+      native: true,
+      permissionGranted: true,
+      scheduled,
     };
   } catch (error) {
     console.error(
@@ -1998,101 +2603,113 @@ export async function initializeSmartNotifications() {
     );
 
     return {
-      enabled: false,
-      scheduled: 0,
-      plan: [],
+      enabled: true,
+      native: true,
+      permissionGranted: true,
+      scheduled: [],
+      error,
     };
   }
 }
 
 // ============================================================
-// MANUAL TEST NOTIFICATION
+// MANUAL SMART NOTIFICATION TEST
 // ============================================================
 //
-// Useful during Android testing.
-//
+// This is ONLY a developer/test notification.
 // It does NOT replace the intelligent notification system.
-// ============================================================
+//
 
-export async function sendTestSmartNotification() {
+export async function sendSmartNotificationTest() {
   if (!isNativeApp()) {
-    return false;
+    return {
+      success: false,
+      reason:
+        "Not running in native app",
+    };
   }
 
-  if (!(await areSmartNotificationsEnabled())) {
-    return false;
+  const permission =
+    await requestSmartNotificationPermission();
+
+  if (!permission.granted) {
+    return {
+      success: false,
+      reason:
+        "Notification permission not granted",
+    };
   }
+
+  const profile =
+    await getSingleProfile();
+
+  const name =
+    getProfileName(profile);
+
+  const title = namedMessage(
+    name,
+    `💙 [Name], TASKBAR is here for you`,
+    "💙 TASKBAR is here for you"
+  );
+
+  const body =
+    "Your smart notification system is working. Keep going one small step at a time. ✨";
+
+  const notificationId =
+    SMART_NOTIFICATION_BASE_ID +
+    99999;
 
   try {
-    const permission =
-      await requestSmartNotificationPermission();
+    await LocalNotifications.schedule(
+      {
+        notifications: [
+          {
+            id: notificationId,
 
-    if (!permission.granted) {
-      return false;
-    }
+            title,
 
-    const profile =
-      await getSingleProfile();
+            body,
 
-    const name =
-      getProfileName(profile);
+            schedule: {
+              at:
+                new Date(
+                  Date.now() + 5000
+                ),
+              allowWhileIdle: true,
+            },
 
-    const notificationId =
-      SMART_NOTIFICATION_BASE_ID +
-      99999;
-
-    await LocalNotifications.cancel({
-      notifications: [
-        {
-          id: notificationId,
-        },
-      ],
-    }).catch(() => {});
-
-    await LocalNotifications.schedule({
-      notifications: [
-        {
-          id: notificationId,
-
-          title:
-            `💙 ${name}, TASKBAR is here for you`,
-
-          body:
-            "Your smart notification system is working. Keep going one small step at a time. ✨",
-
-          schedule: {
-            at: new Date(
-              Date.now() + 5000
-            ),
-            allowWhileIdle: true,
+            extra: {
+              type:
+                "taskbar-smart-test",
+            },
           },
+        ],
+      }
+    );
 
-          extra: {
-            type:
-              "taskbar-smart-test",
-          },
-        },
-      ],
-    });
-
-    return true;
+    return {
+      success: true,
+    };
   } catch (error) {
     console.error(
       "TASKBAR smart test notification error:",
       error
     );
 
-    return false;
+    return {
+      success: false,
+      error,
+    };
   }
 }
 
 // ============================================================
-// DEBUG / PREVIEW
+// PREVIEW SMART NOTIFICATIONS
 // ============================================================
 //
-// This allows the UI to preview what TASKBAR would send
-// without actually scheduling Android notifications.
-// ============================================================
+// This does NOT schedule anything.
+// It only returns the current plan for debugging/testing.
+//
 
 export async function previewSmartNotifications() {
   try {
@@ -2108,10 +2725,15 @@ export async function previewSmartNotifications() {
 }
 
 // ============================================================
-// EXPORT CONFIGURATION
+// EXPORT HELPERS
 // ============================================================
 
 export {
-  DAILY_WINDOWS,
-  MAX_NOTIFICATIONS_PER_DAY,
+  getNotificationState,
+  hasSentToday,
+  markScheduled,
+  unmarkScheduled,
+  markSent,
+  buildCandidates,
+  chooseCandidate,
 };

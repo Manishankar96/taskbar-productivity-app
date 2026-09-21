@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   BarChart3,
   Flame,
@@ -23,10 +24,8 @@ import {
   getTopics,
   getGoals,
   getWater,
-  getScreenTime,
   getStudySessions,
   getActivities,
-  getDiet,
   getQuickTasks,
   getTodoList,
   getTimetable,
@@ -265,11 +264,49 @@ function isCompleted(item) {
 }
 
 
+function normalizeDateKey(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const parsed = new Date(trimmed);
+
+    if (Number.isNaN(parsed.getTime())) {
+      return "";
+    }
+
+    return `${parsed.getFullYear()}-${String(
+      parsed.getMonth() + 1
+    ).padStart(2, "0")}-${String(
+      parsed.getDate()
+    ).padStart(2, "0")}`;
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(
+      value.getMonth() + 1
+    ).padStart(2, "0")}-${String(
+      value.getDate()
+    ).padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
+
 function isDateForItem(item, date) {
-  return (
-    item?.date === date ||
-    item?.completedAt === date
-  );
+  return [
+    item?.date,
+    item?.dueDate,
+    item?.completedAt,
+  ].some((value) => normalizeDateKey(value) === date);
 }
 
 
@@ -278,13 +315,14 @@ function isDateForItem(item, date) {
 ========================================================= */
 
 function Reports() {
+  const location = useLocation();
+  const isInsightsPage = location.pathname === "/insights";
+
   const [topics, setTopics] = useState([]);
   const [goals, setGoals] = useState([]);
   const [water, setWater] = useState([]);
-  const [screenTime, setScreenTime] = useState([]);
   const [studySessions, setStudySessions] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [diet, setDiet] = useState([]);
   const [quickTasks, setQuickTasks] = useState([]);
   const [todoList, setTodoList] = useState([]);
   const [timetable, setTimetable] = useState([]);
@@ -352,10 +390,8 @@ function Reports() {
         topicData,
         goalData,
         waterData,
-        screenData,
         studyData,
         activityData,
-        dietData,
         taskData,
         personalTodoData,
         timetableData,
@@ -372,10 +408,8 @@ function Reports() {
         getTopics(),
         getGoals(),
         getWater(),
-        getScreenTime(),
         getStudySessions(),
         getActivities(),
-        getDiet(),
         getQuickTasks(),
         getTodoList(),
         getTimetable(),
@@ -402,20 +436,12 @@ function Reports() {
         Array.isArray(waterData) ? waterData : []
       );
 
-      setScreenTime(
-        Array.isArray(screenData) ? screenData : []
-      );
-
       setStudySessions(
         Array.isArray(studyData) ? studyData : []
       );
 
       setActivities(
         Array.isArray(activityData) ? activityData : []
-      );
-
-      setDiet(
-        Array.isArray(dietData) ? dietData : []
       );
 
       setQuickTasks(
@@ -629,10 +655,6 @@ function Reports() {
       today
     );
 
-    const screenToday = screenTime.filter(
-      (item) => item?.date === today
-    );
-
     const activityToday = activities.filter(
       (item) => item?.date === today
     );
@@ -643,11 +665,6 @@ function Reports() {
         today
       );
 
-    const screenMinutes = sumField(
-      screenToday,
-      ["minutes", "duration", "time"]
-    );
-
     const learningCompleted =
       topics.filter(
         (topic) =>
@@ -655,9 +672,47 @@ function Reports() {
           isCompleted(topic)
       ).length;
 
-    const todayTasks = quickTasks.filter(
-      (task) => isDateForItem(task, today)
-    );
+    /*
+      Daily Tasks must use the same task sources as the
+      Weekly report.  The previous version checked only
+      quickTasks, so tasks stored in the central To-Do list
+      could incorrectly show as 0.
+    */
+    const dailyTaskMap = new Map();
+
+    todoList.forEach((task) => {
+      const taskDate = normalizeDateKey(
+        task?.date ?? task?.dueDate
+      );
+
+      if (taskDate !== today) return;
+
+      const id = `todo-${String(task?.id ?? task?.title ?? Math.random())}`;
+
+      dailyTaskMap.set(id, {
+        ...task,
+        date: taskDate,
+        completed: isCompleted(task),
+      });
+    });
+
+    quickTasks.forEach((task) => {
+      const taskDate = normalizeDateKey(
+        task?.dueDate ?? task?.date
+      );
+
+      if (taskDate !== today) return;
+
+      const id = `quick-${String(task?.id ?? task?.title ?? Math.random())}`;
+
+      dailyTaskMap.set(id, {
+        ...task,
+        date: taskDate,
+        completed: isCompleted(task),
+      });
+    });
+
+    const todayTasks = Array.from(dailyTaskMap.values());
 
     const tasksCompleted =
       todayTasks.filter(isCompleted).length;
@@ -738,7 +793,6 @@ function Reports() {
     return {
       waterToday,
       waterTarget,
-      screenMinutes,
       studyMinutes,
       activityToday,
       activityMinutes: sumField(
@@ -755,10 +809,10 @@ function Reports() {
     topics,
     goals,
     water,
-    screenTime,
     studySessions,
     activities,
     quickTasks,
+    todoList,
   ]);
 
 
@@ -978,21 +1032,6 @@ function Reports() {
           selectedReport.studyMinutes
       );
 
-    const screen =
-      sumField(
-        screenTime.filter(
-          (item) => item?.date === date
-        ),
-        ["minutes", "duration", "time"]
-      );
-
-    const storedScreen =
-      safeNumber(
-        selectedReport.summary
-          ?.screenMinutes ??
-          selectedReport.screenMinutes
-      );
-
     const waterValue =
       getWaterForDate(
         water,
@@ -1027,7 +1066,6 @@ function Reports() {
       tasks: storedTasks,
       goal: storedGoal,
       study: study > 0 ? study : storedStudy,
-      screen: screen > 0 ? screen : storedScreen,
       water: waterValue > 0
         ? waterValue
         : storedWater,
@@ -1047,7 +1085,6 @@ function Reports() {
     today,
     daily,
     water,
-    screenTime,
     studySessions,
     activities,
   ]);
@@ -1297,88 +1334,6 @@ function Reports() {
   }, [incomeList, expenseList, today]);
 
 
-  /* =======================================================
-     WELLNESS INSIGHTS
-
-     Uses the same stored Taskbar wellness data:
-     Water, Screen Time, Activities and Diet.
-======================================================= */
-
-  const wellnessInsights = useMemo(() => {
-    const dietToday = diet.filter(
-      (item) => item?.date === today
-    );
-
-    const sugarToday = dietToday.reduce(
-      (total, item) =>
-        total +
-        safeNumber(
-          item?.sugar ??
-            item?.sugarGrams ??
-            item?.sugarIntake
-        ),
-      0
-    );
-
-    const proteinToday = dietToday.reduce(
-      (total, item) =>
-        total +
-        safeNumber(
-          item?.protein ??
-            item?.proteinGrams ??
-            item?.proteinIntake
-        ),
-      0
-    );
-
-    const proteinTargetCandidates = dietToday
-      .map((item) =>
-        safeNumber(
-          item?.proteinTarget ??
-            item?.targetProtein ??
-            item?.dailyProteinTarget
-        )
-      )
-      .filter((value) => value > 0);
-
-    const proteinTarget =
-      proteinTargetCandidates.length > 0
-        ? proteinTargetCandidates[proteinTargetCandidates.length - 1]
-        : 0;
-
-    const sugarPercentage = Math.min(
-      100,
-      Math.round((sugarToday / 10) * 100)
-    );
-
-    const proteinPercentage =
-      proteinTarget > 0
-        ? Math.min(100, Math.round((proteinToday / proteinTarget) * 100))
-        : 0;
-
-    const waterPercentage =
-      daily.waterTarget > 0
-        ? Math.min(100, Math.round((daily.waterToday / daily.waterTarget) * 100))
-        : 0;
-
-    return {
-      sugarToday,
-      sugarLimit: 10,
-      sugarPercentage,
-      sugarWithinLimit: sugarToday < 10,
-      proteinToday,
-      proteinTarget,
-      proteinPercentage,
-      waterToday: daily.waterToday,
-      waterTarget: daily.waterTarget,
-      waterPercentage,
-      screenMinutes: daily.screenMinutes,
-      activityMinutes: daily.activityMinutes,
-      activityCount: daily.activityToday.length,
-    };
-  }, [diet, today, daily]);
-
-
   const careerInsights = useMemo(() => {
     const preparationTasks = Array.isArray(jobPreparationData?.tasks)
       ? jobPreparationData.tasks
@@ -1470,13 +1425,6 @@ function Reports() {
 
   const weeklyChart = useMemo(() => {
     return weekDates.map((date) => {
-      const screen = sumField(
-        screenTime.filter(
-          (item) => item?.date === date
-        ),
-        ["minutes", "duration", "time"]
-      );
-
       const study =
         getStudyMinutesForDate(
           studySessions,
@@ -1498,8 +1446,6 @@ function Reports() {
 
       return {
         day: weekday(date),
-        screenTime:
-          Math.round((screen / 60) * 10) / 10,
         studyTime:
           Math.round((study / 60) * 10) / 10,
         activity:
@@ -1510,7 +1456,6 @@ function Reports() {
     });
   }, [
     weekDates,
-    screenTime,
     studySessions,
     activities,
     water,
@@ -1529,21 +1474,6 @@ function Reports() {
         0
       ),
     [weekDates, water]
-  );
-
-
-  const weeklyScreen = useMemo(
-    () =>
-      sumField(
-        screenTime.filter(
-          (item) =>
-            weekDates.includes(
-              item?.date
-            )
-        ),
-        ["minutes", "duration", "time"]
-      ),
-    [screenTime, weekDates]
   );
 
 
@@ -1579,22 +1509,76 @@ function Reports() {
 
   const weeklyTopics =
     topics.filter(
-      (topic) =>
-        weekDates.includes(
-          topic?.completedAt
-        ) &&
-        isCompleted(topic)
+      (topic) => {
+        const completedDate =
+          normalizeDateKey(topic?.completedAt);
+
+        const itemDate =
+          normalizeDateKey(
+            topic?.date ??
+            topic?.plannedDate
+          );
+
+        return (
+          weekDates.includes(completedDate || itemDate) &&
+          isCompleted(topic)
+        );
+      }
     ).length;
 
 
-  const weeklyTasks =
-    quickTasks.filter(
-      (task) =>
-        weekDates.includes(
-          task?.completedAt
-        ) &&
+  /*
+   * Tasks are read from the Central To-Do list first.
+   *
+   * The old code compared an ISO timestamp such as
+   * 2026-09-21T10:30:00.000Z directly with a date key
+   * such as 2026-09-21, so completed tasks were missed.
+   *
+   * We normalize both values to the same local date key.
+   * Quick Tasks are used as a fallback only when the
+   * Central To-Do list has no matching task records.
+   */
+  const weeklyTasks = useMemo(() => {
+    const centralCompletedTasks = todoList.filter((task) => {
+      const completedDate = normalizeDateKey(
+        task?.completedAt
+      );
+
+      const taskDate = normalizeDateKey(
+        task?.date ?? task?.dueDate
+      );
+
+      const taskDateForReport =
+        completedDate || taskDate;
+
+      return (
+        weekDates.includes(taskDateForReport) &&
         isCompleted(task)
-    ).length;
+      );
+    });
+
+    if (centralCompletedTasks.length > 0) {
+      return centralCompletedTasks.length;
+    }
+
+    return quickTasks.filter((task) => {
+      const completedDate = normalizeDateKey(
+        task?.completedAt
+      );
+
+      const taskDate = normalizeDateKey(
+        task?.date ?? task?.dueDate
+      );
+
+      const taskDateForReport =
+        completedDate || taskDate;
+
+      return (
+        weekDates.includes(taskDateForReport) &&
+        isCompleted(task)
+      );
+    }).length;
+  }, [todoList, quickTasks, weekDates]);
 
 
   /* =======================================================
@@ -1634,13 +1618,6 @@ function Reports() {
 
   const monthlyChart = useMemo(() => {
     return monthDates.map((date) => {
-      const screen = sumField(
-        screenTime.filter(
-          (item) => item?.date === date
-        ),
-        ["minutes", "duration", "time"]
-      );
-
       const study =
         getStudyMinutesForDate(
           studySessions,
@@ -1662,7 +1639,6 @@ function Reports() {
 
       return {
         day: shortDate(date),
-        screenTime: Math.round(screen),
         studyTime: Math.round(study),
         activity: Math.round(activity),
         water:
@@ -1673,7 +1649,6 @@ function Reports() {
     });
   }, [
     monthDates,
-    screenTime,
     studySessions,
     activities,
     water,
@@ -1698,7 +1673,7 @@ function Reports() {
       <div className="reports-page">
         <div className="page-header">
           <div>
-            <h1>📊 Reports</h1>
+            <h1>{isInsightsPage ? "💡 Insights" : "📊 Reports"}</h1>
             <p>Loading your reports...</p>
           </div>
 
@@ -1708,6 +1683,110 @@ function Reports() {
     );
   }
 
+
+  /* =======================================================
+     INSIGHTS MODE
+
+     /insights answers: "What does my data tell me?"
+     /reports keeps the detailed historical report views.
+  ======================================================= */
+
+  if (isInsightsPage) {
+    const totalStudyMinutes = studySessions.reduce((total, session) => {
+      const minutes = safeNumber(
+        session?.actualMinutes ??
+        session?.durationMinutes ??
+        session?.minutes
+      );
+      return total + minutes;
+    }, 0);
+
+    const todayWater = getWaterForDate(water, today);
+    const observations = [
+      {
+        icon: "🎯",
+        title: "Goal momentum",
+        value: `${goalsAndTodoInsights.goalProgress}%`,
+        text: goalsAndTodoInsights.goalTotal > 0
+          ? `${goalsAndTodoInsights.goalCompleted} of ${goalsAndTodoInsights.goalTotal} goals are completed.`
+          : "No goals are recorded yet.",
+      },
+      {
+        icon: "✅",
+        title: "Today's task pattern",
+        value: `${goalsAndTodoInsights.completionRate}%`,
+        text: goalsAndTodoInsights.todayTotal > 0
+          ? `${goalsAndTodoInsights.completedToday} completed and ${goalsAndTodoInsights.pendingToday} still pending today.`
+          : "No dated tasks are scheduled for today.",
+      },
+      {
+        icon: "📚",
+        title: "Learning activity",
+        value: `${totalStudyMinutes} min`,
+        text: `${studySessions.length} study session${studySessions.length === 1 ? "" : "s"} are recorded in your data.`,
+      },
+      {
+        icon: "💧",
+        title: "Water pattern",
+        value: `${Math.round(todayWater)} ml`,
+        text: "Today's recorded water intake can be compared with your daily target on the Water page.",
+      },
+      {
+        icon: "💼",
+        title: "Career preparation",
+        value: `${careerInsights.preparationProgress}%`,
+        text: `${careerInsights.preparationCompleted} of ${careerInsights.preparationTotal} preparation tasks are completed.`,
+      },
+      {
+        icon: "💰",
+        title: "Monthly balance",
+        value: `₹${Math.round(financeInsights.balance).toLocaleString("en-IN")}`,
+        text: `Income ₹${Math.round(financeInsights.monthIncome).toLocaleString("en-IN")} minus expenses ₹${Math.round(financeInsights.monthExpenses).toLocaleString("en-IN")}.`,
+      },
+    ];
+
+    return (
+      <div className="reports-page insights-page">
+        <div className="page-header">
+          <div>
+            <h1>💡 Insights</h1>
+            <p>What does your data tell you?</p>
+          </div>
+          <button type="button" onClick={handleRefresh} disabled={refreshing} className="add-topic-button">
+            <RefreshCw size={18} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+
+        <section className="insights-intro-card">
+          <strong>Your current patterns</strong>
+          <p>These are observations generated from the data already stored in TASKBAR. Detailed history and charts remain in Reports.</p>
+        </section>
+
+        <section className="insights-grid">
+          {observations.map((item) => (
+            <article className="insight-card" key={item.title}>
+              <div className="insight-card-icon" aria-hidden="true">{item.icon}</div>
+              <div className="insight-card-body">
+                <span>{item.title}</span>
+                <strong>{item.value}</strong>
+                <p>{item.text}</p>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="insights-next-card">
+          <h2>Useful next checks</h2>
+          <ul>
+            <li>{goalsAndTodoInsights.overdueCount > 0 ? `${goalsAndTodoInsights.overdueCount} dated tasks are overdue.` : "There are no overdue dated tasks right now."}</li>
+            <li>{streak.current > 0 ? `Your current dashboard streak is ${streak.current} day${streak.current === 1 ? "" : "s"}.` : "Your current dashboard streak has no active days recorded."}</li>
+            <li>Use Reports for Daily, Weekly, Monthly and History views when you want the underlying data rather than observations.</li>
+          </ul>
+        </section>
+      </div>
+    );
+  }
 
   /* =======================================================
      UI
@@ -1866,21 +1945,6 @@ function Reports() {
 
 
             <div className="report-card">
-              <span>Screen Time</span>
-
-              <strong>
-                {formatMinutes(
-                  daily.screenMinutes
-                )}
-              </strong>
-
-              <small>
-                all screen activity
-              </small>
-            </div>
-
-
-            <div className="report-card">
               <span>Activities</span>
 
               <strong>
@@ -2020,7 +2084,7 @@ function Reports() {
           </section>
 
 
-          {/* SCREEN + STUDY */}
+          {/* STUDY */}
 
           <section
             className="reports-grid"
@@ -2028,37 +2092,6 @@ function Reports() {
               marginTop: "24px",
             }}
           >
-
-            <div className="report-panel">
-
-              <div className="section-heading">
-
-                <div>
-                  <h2>
-                    💻 Screen Time
-                  </h2>
-
-                  <p>
-                    Your screen usage
-                    for today.
-                  </p>
-                </div>
-
-              </div>
-
-              <div className="report-large-number">
-                {formatMinutes(
-                  daily.screenMinutes
-                )}
-              </div>
-
-              <p className="report-description">
-                Includes all categories
-                recorded in Screen Time.
-              </p>
-
-            </div>
-
 
             <div className="report-panel">
 
@@ -2221,85 +2254,6 @@ function Reports() {
           </section>
 
 
-          {/* WELLNESS INSIGHTS */}
-
-          <section
-            className="report-panel"
-            style={{ marginTop: "24px" }}
-          >
-            <div className="section-heading">
-              <div>
-                <h2>❤️ Wellness Overview</h2>
-                <p>
-                  Today's water, diet, activity and screen-time data.
-                </p>
-              </div>
-            </div>
-
-            <div className="report-mini-stats">
-              <div>
-                <span>Water</span>
-                <strong>
-                  {formatLitres(wellnessInsights.waterToday)} / {formatLitres(wellnessInsights.waterTarget)}
-                </strong>
-              </div>
-
-              <div>
-                <span>Water Progress</span>
-                <strong>{wellnessInsights.waterPercentage}%</strong>
-              </div>
-
-              <div>
-                <span>Sugar</span>
-                <strong>
-                  {wellnessInsights.sugarToday.toFixed(1)}g / &lt;10g
-                </strong>
-              </div>
-
-              <div>
-                <span>Sugar Status</span>
-                <strong>
-                  {wellnessInsights.sugarWithinLimit ? "Within Limit" : "Over Limit"}
-                </strong>
-              </div>
-
-              <div>
-                <span>Protein</span>
-                <strong>
-                  {wellnessInsights.proteinToday.toFixed(1)}g
-                  {wellnessInsights.proteinTarget > 0
-                    ? ` / ${wellnessInsights.proteinTarget}g`
-                    : ""}
-                </strong>
-              </div>
-
-              <div>
-                <span>Protein Progress</span>
-                <strong>
-                  {wellnessInsights.proteinTarget > 0
-                    ? `${wellnessInsights.proteinPercentage}%`
-                    : "Target not set"}
-                </strong>
-              </div>
-
-              <div>
-                <span>Activity</span>
-                <strong>{formatMinutes(wellnessInsights.activityMinutes)}</strong>
-              </div>
-
-              <div>
-                <span>Activity Entries</span>
-                <strong>{wellnessInsights.activityCount}</strong>
-              </div>
-
-              <div>
-                <span>Screen Time</span>
-                <strong>{formatMinutes(wellnessInsights.screenMinutes)}</strong>
-              </div>
-            </div>
-          </section>
-
-
           {/* GOALS + CENTRAL TO-DO PRODUCTIVITY */}
 
           <section
@@ -2437,8 +2391,7 @@ function Reports() {
                 </h2>
 
                 <p>
-                  Compare your recent
-                  screen time, study time,
+                  Compare your recent study time,
                   activity and water intake.
                 </p>
               </div>
@@ -2466,12 +2419,6 @@ function Reports() {
                   <Tooltip />
 
                   <Legend />
-
-                  <Bar
-                    dataKey="screenTime"
-                    name="Screen Time (h)"
-                    fill="#2563eb"
-                  />
 
                   <Bar
                     dataKey="studyTime"
@@ -2506,16 +2453,6 @@ function Reports() {
                 <strong>
                   {formatMinutes(
                     weeklyStudy
-                  )}
-                </strong>
-              </div>
-
-              <div>
-                <span>Screen Time</span>
-
-                <strong>
-                  {formatMinutes(
-                    weeklyScreen
                   )}
                 </strong>
               </div>
@@ -2585,16 +2522,6 @@ function Reports() {
 
 
           <div className="report-mini-stats">
-
-            <div>
-              <span>Screen Time</span>
-
-              <strong>
-                {formatMinutes(
-                  weeklyScreen
-                )}
-              </strong>
-            </div>
 
             <div>
               <span>Study Time</span>
@@ -2673,14 +2600,6 @@ function Reports() {
 
                 <Line
                   type="monotone"
-                  dataKey="screenTime"
-                  name="Screen Time (h)"
-                  stroke="#2563eb"
-                  strokeWidth={3}
-                />
-
-                <Line
-                  type="monotone"
                   dataKey="studyTime"
                   name="Study Time (h)"
                   stroke="#9333ea"
@@ -2735,23 +2654,6 @@ function Reports() {
 
 
           <div className="report-mini-stats">
-
-            <div>
-              <span>Screen Time</span>
-
-              <strong>
-                {formatMinutes(
-                  monthlyChart.reduce(
-                    (total, item) =>
-                      total +
-                      safeNumber(
-                        item.screenTime
-                      ),
-                    0
-                  )
-                )}
-              </strong>
-            </div>
 
             <div>
               <span>Study Time</span>
@@ -2815,12 +2717,6 @@ function Reports() {
                 <Tooltip />
 
                 <Legend />
-
-                <Bar
-                  dataKey="screenTime"
-                  name="Screen Time (min)"
-                  fill="#2563eb"
-                />
 
                 <Bar
                   dataKey="studyTime"
@@ -3074,20 +2970,6 @@ function Reports() {
                             {formatMinutes(
                               selectedHistoryValues
                                 .study
-                            )}
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Screen Time
-                          </span>
-
-                          <strong>
-                            {formatMinutes(
-                              selectedHistoryValues
-                                .screen
                             )}
                           </strong>
                         </div>

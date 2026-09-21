@@ -13,6 +13,8 @@ import {
   Search,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
+
 import {
   getItemsFromFirestore,
   saveItemToFirestore,
@@ -513,12 +515,18 @@ function QuickNotes() {
 
       {showForm && (
 
-        <section
-          className="module-form-card"
-          style={{
-            marginTop: 20,
-          }}
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="quick-notes-form-modal"
         >
+          <section
+            className="module-form-card"
+            style={{
+              marginTop: 0,
+            }}
+          >
 
           <div className="add-topic-header">
 
@@ -599,8 +607,8 @@ function QuickNotes() {
             </button>
 
           </form>
-
-        </section>
+          </section>
+        </Modal>
 
       )}
 

@@ -197,9 +197,9 @@ const waterGlassStyles = `
   padding: 28px;
   margin-top: 20px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(100, 120, 150, 0.16);
-  box-shadow: 0 12px 35px rgba(25, 45, 80, 0.08);
+  background: var(--tb-glass, rgba(255, 255, 255, 0.055));
+  border: 1px solid var(--tb-line, rgba(255, 255, 255, 0.12));
+  box-shadow: var(--tb-shadow, 0 12px 35px rgba(0, 0, 0, 0.32));
   backdrop-filter: blur(12px);
 }
 
@@ -215,17 +215,17 @@ const waterGlassStyles = `
   margin: 0;
   font-size: 24px;
   line-height: 1.25;
-  color: #172033;
+  color: var(--tb-text, #ffffff);
 }
 
 .water-header p {
   margin: 7px 0 0;
-  color: #687386;
+  color: var(--tb-muted, rgba(255, 255, 255, 0.72));
   font-size: 14px;
 }
 
 .water-icon {
-  color: #2999ed;
+  color: var(--taskbar-theme-main, #2999ed);
   flex-shrink: 0;
 }
 
@@ -257,14 +257,14 @@ const waterGlassStyles = `
   margin-top: 24px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8edf5;
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .water-progress-fill {
   height: 100%;
   min-width: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, #35a9ef, #66c9ff);
+  background: var(--taskbar-theme-gradient);
   transition: width 0.5s ease;
 }
 
@@ -273,7 +273,7 @@ const waterGlassStyles = `
   justify-content: space-between;
   gap: 16px;
   margin-top: 9px;
-  color: #69758a;
+  color: var(--tb-muted, rgba(255, 255, 255, 0.72));
   font-size: 13px;
   font-weight: 600;
 }
@@ -286,12 +286,12 @@ const waterGlassStyles = `
   gap: 18px;
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid rgba(100, 120, 150, 0.12);
+  border-top: 1px solid var(--tb-line-soft, rgba(255, 255, 255, 0.10));
 }
 
 .water-target-section label,
 .water-amount-section label {
-  color: #273246;
+  color: var(--tb-text, #ffffff);
   font-size: 14px;
   font-weight: 700;
 }
@@ -302,10 +302,10 @@ const waterGlassStyles = `
   min-height: 42px;
   box-sizing: border-box;
   padding: 9px 12px;
-  border: 1px solid #d6deea;
+  border: 1px solid var(--tb-line, rgba(255, 255, 255, 0.12));
   border-radius: 10px;
-  background: #fff;
-  color: #202b3d;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--tb-text, #ffffff);
   font-size: 14px;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -313,8 +313,8 @@ const waterGlassStyles = `
 
 .water-target-section input:focus,
 .water-amount-section select:focus {
-  border-color: #4baaf0;
-  box-shadow: 0 0 0 3px rgba(75, 170, 240, 0.14);
+  border-color: var(--taskbar-theme-main);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--taskbar-theme-main) 14%, transparent);
 }
 
 .water-actions {
@@ -353,29 +353,54 @@ const waterGlassStyles = `
   opacity: 0.55;
 }
 
-.water-add-button {
-  color: #fff;
-  background: linear-gradient(135deg, #278fe5, #48b8f5);
-  box-shadow: 0 7px 18px rgba(39, 143, 229, 0.22);
-}
-
-.water-remove-button {
-  color: #334155;
-  background: #edf2f7;
-}
-
+.water-add-button,
+.water-remove-button,
 .water-reset-button {
-  color: #9b4d4d;
-  background: #fff0f0;
+  color: #ffffff;
+  background: var(--taskbar-theme-gradient);
+  background-image: var(--taskbar-theme-gradient);
+  border: 1px solid var(--taskbar-theme-main);
+  box-shadow:
+    0 7px 18px
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-main) 22%,
+      transparent
+    );
+}
+
+.water-add-button:hover:not(:disabled),
+.water-remove-button:hover:not(:disabled),
+.water-reset-button:hover:not(:disabled) {
+  background: var(--taskbar-theme-gradient);
+  background-image: var(--taskbar-theme-gradient);
+  border-color: var(--taskbar-theme-main);
+  box-shadow:
+    0 10px 24px
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-main) 32%,
+      transparent
+    );
+}
+
+.water-add-button:disabled,
+.water-remove-button:disabled,
+.water-reset-button:disabled {
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.10);
+  background-image: none;
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: none;
 }
 
 .water-status-card {
   margin-top: 20px;
   padding: 24px 28px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(100, 120, 150, 0.14);
-  box-shadow: 0 10px 30px rgba(25, 45, 80, 0.06);
+  background: var(--tb-glass, rgba(255, 255, 255, 0.055));
+  border: 1px solid var(--tb-line, rgba(255, 255, 255, 0.12));
+  box-shadow: var(--tb-shadow, 0 10px 30px rgba(0, 0, 0, 0.25));
 }
 
 .water-status-card h2 {
@@ -394,13 +419,13 @@ const waterGlassStyles = `
   min-width: 0;
   padding: 18px;
   border-radius: 15px;
-  background: rgba(241, 246, 251, 0.8);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .water-status-grid span {
   display: block;
   margin-bottom: 7px;
-  color: #718096;
+  color: var(--tb-muted, rgba(255, 255, 255, 0.65));
   font-size: 13px;
   font-weight: 600;
 }

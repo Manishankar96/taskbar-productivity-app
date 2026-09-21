@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Modal from "../../components/common/Modal";
 import {
   Bookmark,
   CalendarDays,
@@ -329,7 +330,13 @@ export default function SavedJobs() {
       </div>
 
       {/* Add Form */}
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="saved-jobs-form-modal"
+      >
+m && (
         <section className="saved-jobs-card saved-jobs-form-card">
           <div className="saved-jobs-form-header">
             <div>
@@ -459,7 +466,7 @@ export default function SavedJobs() {
             </button>
           </div>
         </section>
-      )}
+      </Modal>
 
       {/* Saved Jobs */}
       <section className="saved-jobs-card">

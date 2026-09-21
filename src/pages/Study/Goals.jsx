@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import Modal from "../../components/common/Modal";
 
 import {
   Target,
@@ -10,18 +11,26 @@ import {
   Clock,
   CheckCircle,
   Link as LinkIcon,
+  Circle,
 } from "lucide-react";
 
 import {
   getGoals,
   saveGoals,
   getTopics,
+  getTodoList,
+  saveTodoList,
 } from "../../utils/db";
 
 import {
   calculateDaysRemaining,
   calculatePercentage,
 } from "../../utils/calculations";
+
+import {
+  saveItemToFirestore,
+  deleteItemFromFirestore,
+} from "../../firebase/firestore";
 
 // ========================================
 // LEARNING SKILLS
@@ -65,6 +74,7 @@ const PERSONAL_SKILLS = [
 function Goals() {
   const [goals, setGoals] = useState([]);
   const [topics, setTopics] = useState([]);
+  const [goalTasks, setGoalTasks] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -90,6 +100,7 @@ function Goals() {
       try {
         const savedGoals = await getGoals();
         const savedTopics = await getTopics();
+        const savedTodoList = await getTodoList();
 
         if (!mounted) {
           return;
@@ -106,6 +117,16 @@ function Goals() {
             ? savedTopics
             : []
         );
+
+        setGoalTasks(
+          Array.isArray(savedTodoList)
+            ? savedTodoList.filter(
+                (task) =>
+                  task?.goalId !== undefined &&
+                  task?.goalId !== null
+              )
+            : []
+        );
       } catch (error) {
         console.error(
           "Failed to load Goals:",
@@ -115,6 +136,7 @@ function Goals() {
         if (mounted) {
           setGoals([]);
           setTopics([]);
+          setGoalTasks([]);
         }
       } finally {
         if (mounted) {
@@ -153,12 +175,60 @@ function Goals() {
       refreshTopics
     );
 
+    // ========================================
+    // REFRESH GOAL TASKS
+    // ========================================
+
+    async function refreshGoalTasks() {
+      try {
+        const savedTodoList =
+          await getTodoList();
+
+        if (mounted) {
+          setGoalTasks(
+            Array.isArray(savedTodoList)
+              ? savedTodoList.filter(
+                  (task) =>
+                    task?.goalId !== undefined &&
+                    task?.goalId !== null
+                )
+              : []
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to refresh goal tasks:",
+          error
+        );
+      }
+    }
+
+    window.addEventListener(
+      "todoListUpdated",
+      refreshGoalTasks
+    );
+
+    window.addEventListener(
+      "focus",
+      refreshGoalTasks
+    );
+
     return () => {
       mounted = false;
 
       window.removeEventListener(
         "learningTopicsUpdated",
         refreshTopics
+      );
+
+      window.removeEventListener(
+        "todoListUpdated",
+        refreshGoalTasks
+      );
+
+      window.removeEventListener(
+        "focus",
+        refreshGoalTasks
       );
     };
   }, []);
@@ -220,10 +290,11 @@ function Goals() {
           topic.status === "completed"
       ).length;
 
-    const percentage = calculatePercentage(
-      completedTopics,
-      skillTopics.length
-    );
+    const percentage =
+      calculatePercentage(
+        completedTopics,
+        skillTopics.length
+      );
 
     if (!Number.isFinite(percentage)) {
       return 0;
@@ -343,17 +414,23 @@ function Goals() {
     event.preventDefault();
 
     if (!goalForm.title.trim()) {
-      alert("Please enter a Goal Title.");
+      alert(
+        "Please enter a Goal Title."
+      );
       return;
     }
 
     if (!goalForm.skill) {
-      alert("Please select a Skill.");
+      alert(
+        "Please select a Skill."
+      );
       return;
     }
 
     if (!goalForm.targetDate) {
-      alert("Please select a Target Date.");
+      alert(
+        "Please select a Target Date."
+      );
       return;
     }
 
@@ -365,32 +442,35 @@ function Goals() {
       // ======================================
 
       if (editingGoal) {
-        updatedGoals = goals.map((goal) => {
-          if (
-            goal.id === editingGoal.id
-          ) {
-            return {
-              ...goal,
+        updatedGoals = goals.map(
+          (goal) => {
+            if (
+              goal.id ===
+              editingGoal.id
+            ) {
+              return {
+                ...goal,
 
-              title:
-                goalForm.title.trim(),
+                title:
+                  goalForm.title.trim(),
 
-              description:
-                goalForm.description.trim(),
+                description:
+                  goalForm.description.trim(),
 
-              skill:
-                goalForm.skill,
+                skill:
+                  goalForm.skill,
 
-              targetDate:
-                goalForm.targetDate,
+                targetDate:
+                  goalForm.targetDate,
 
-              status:
-                goalForm.status,
-            };
+                status:
+                  goalForm.status,
+              };
+            }
+
+            return goal;
           }
-
-          return goal;
-        });
+        );
       }
 
       // ======================================
@@ -427,13 +507,17 @@ function Goals() {
       // SAVE TO FIREBASE
       // ======================================
 
-      await saveGoals(updatedGoals);
+      await saveGoals(
+        updatedGoals
+      );
 
       // ======================================
       // UPDATE UI
       // ======================================
 
-      setGoals(updatedGoals);
+      setGoals(
+        updatedGoals
+      );
 
       closeForm();
     } catch (error) {
@@ -476,13 +560,17 @@ function Goals() {
       // SAVE UPDATED LIST TO FIREBASE
       // ======================================
 
-      await saveGoals(updatedGoals);
+      await saveGoals(
+        updatedGoals
+      );
 
       // ======================================
       // UPDATE UI
       // ======================================
 
-      setGoals(updatedGoals);
+      setGoals(
+        updatedGoals
+      );
     } catch (error) {
       console.error(
         "Delete goal error:",
@@ -508,26 +596,31 @@ function Goals() {
   ) {
     try {
       const updatedGoals =
-        goals.map((goal) =>
-          goal.id === id
-            ? {
-                ...goal,
-                status,
-              }
-            : goal
+        goals.map(
+          (goal) =>
+            goal.id === id
+              ? {
+                  ...goal,
+                  status,
+                }
+              : goal
         );
 
       // ======================================
       // SAVE TO FIREBASE
       // ======================================
 
-      await saveGoals(updatedGoals);
+      await saveGoals(
+        updatedGoals
+      );
 
       // ======================================
       // UPDATE UI
       // ======================================
 
-      setGoals(updatedGoals);
+      setGoals(
+        updatedGoals
+      );
     } catch (error) {
       console.error(
         "Update status error:",
@@ -544,28 +637,302 @@ function Goals() {
   }
 
   // ========================================
+  // ADD TASK TO GOAL
+  // ========================================
+
+  async function addGoalTask(goal) {
+    const title =
+      window.prompt(
+        `Add a task for "${goal.title}"`
+      );
+
+    if (!title || !title.trim()) {
+      return;
+    }
+
+    const task = {
+      id: String(
+        Date.now()
+      ),
+
+      title:
+        title.trim(),
+
+      date:
+        goal.targetDate || "",
+
+      completed: false,
+
+      completedAt: null,
+
+      goalId:
+        goal.id,
+
+      goalTitle:
+        goal.title,
+
+      source:
+        "goal",
+
+      type:
+        "Goal Task",
+    };
+
+    try {
+      const existingTodoList =
+        await getTodoList();
+
+      const todos =
+        Array.isArray(
+          existingTodoList
+        )
+          ? existingTodoList
+          : [];
+
+      const updated = [
+        ...todos,
+        task,
+      ];
+
+      // ======================================
+      // SAVE LOCAL TODO LIST
+      // ======================================
+
+      await saveTodoList(
+        updated
+      );
+
+      // ======================================
+      // SAVE TO FIRESTORE
+      // ======================================
+
+      await saveItemToFirestore(
+        "todoList",
+        String(task.id),
+        task
+      );
+
+      // ======================================
+      // UPDATE GOAL TASKS UI
+      // ======================================
+
+      setGoalTasks(
+        updated.filter(
+          (item) =>
+            item?.goalId !==
+              undefined &&
+            item?.goalId !== null
+        )
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "todoListUpdated"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to add goal task:",
+        error
+      );
+
+      alert(
+        `Could not add goal task.\n\n${
+          error?.message ||
+          "Unknown error"
+        }`
+      );
+    }
+  }
+
+  // ========================================
+  // TOGGLE GOAL TASK
+  // ========================================
+
+  async function toggleGoalTask(
+    task
+  ) {
+    try {
+      const existingTodoList =
+        await getTodoList();
+
+      const todos =
+        Array.isArray(
+          existingTodoList
+        )
+          ? existingTodoList
+          : [];
+
+      const updated =
+        todos.map(
+          (item) =>
+            String(item.id) ===
+            String(task.id)
+              ? {
+                  ...item,
+
+                  completed:
+                    item.completed !==
+                    true,
+
+                  completedAt:
+                    item.completed !==
+                    true
+                      ? new Date().toISOString()
+                      : null,
+                }
+              : item
+        );
+
+      const changedTask =
+        updated.find(
+          (item) =>
+            String(item.id) ===
+            String(task.id)
+        );
+
+      await saveTodoList(
+        updated
+      );
+
+      if (changedTask) {
+        await saveItemToFirestore(
+          "todoList",
+          String(
+            changedTask.id
+          ),
+          changedTask
+        );
+      }
+
+      setGoalTasks(
+        updated.filter(
+          (item) =>
+            item?.goalId !==
+              undefined &&
+            item?.goalId !== null
+        )
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "todoListUpdated"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to update goal task:",
+        error
+      );
+
+      alert(
+        `Could not update goal task.\n\n${
+          error?.message ||
+          "Unknown error"
+        }`
+      );
+    }
+  }
+
+  // ========================================
+  // DELETE GOAL TASK
+  // ========================================
+
+  async function deleteGoalTask(
+    task
+  ) {
+    const confirmed =
+      window.confirm(
+        `Delete goal task "${task.title}"?`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const existingTodoList =
+        await getTodoList();
+
+      const todos =
+        Array.isArray(
+          existingTodoList
+        )
+          ? existingTodoList
+          : [];
+
+      const updated =
+        todos.filter(
+          (item) =>
+            String(item.id) !==
+            String(task.id)
+        );
+
+      await saveTodoList(
+        updated
+      );
+
+      await deleteItemFromFirestore(
+        "todoList",
+        String(task.id)
+      );
+
+      setGoalTasks(
+        updated.filter(
+          (item) =>
+            item?.goalId !==
+              undefined &&
+            item?.goalId !== null
+        )
+      );
+
+      window.dispatchEvent(
+        new Event(
+          "todoListUpdated"
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to delete goal task:",
+        error
+      );
+
+      alert(
+        `Could not delete goal task.\n\n${
+          error?.message ||
+          "Unknown error"
+        }`
+      );
+    }
+  }
+
+  // ========================================
   // STATISTICS
   // ========================================
 
   const stats = useMemo(() => {
-    const total = goals.length;
+    const total =
+      goals.length;
 
     const completed =
       goals.filter(
         (goal) =>
-          goal.status === "completed"
+          goal.status ===
+          "completed"
       ).length;
 
     const pending =
       goals.filter(
         (goal) =>
-          goal.status === "pending"
+          goal.status ===
+          "pending"
       ).length;
 
     const inProgress =
       goals.filter(
         (goal) =>
-          goal.status === "in-progress"
+          goal.status ===
+          "in-progress"
       ).length;
 
     let averageProgress = 0;
@@ -595,7 +962,8 @@ function Goals() {
 
       averageProgress =
         Math.round(
-          totalProgress / total
+          totalProgress /
+            total
         );
     }
 
@@ -767,7 +1135,14 @@ function Goals() {
       ================================== */}
 
       {showForm && (
-        <section className="goal-form-card">
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="goal-form-modal"
+        >
+          <section className="goal-form-card">
+
 
           <div className="goal-form-header">
 
@@ -996,6 +1371,7 @@ function Goals() {
           </form>
 
         </section>
+        </Modal>
       )}
 
       {/* ==================================
@@ -1077,6 +1453,17 @@ function Goals() {
                       goal.targetDate
                     )
                   : 0;
+
+              const tasksForGoal =
+                goalTasks.filter(
+                  (task) =>
+                    String(
+                      task.goalId
+                    ) ===
+                    String(
+                      goal.id
+                    )
+                );
 
               return (
 
@@ -1214,13 +1601,254 @@ function Goals() {
 
                     <p className="goal-topic-count">
 
-                      {goal.status === "completed"
+                      {goal.status ===
+                      "completed"
                         ? "Goal completed."
                         : "No Learning topics connected yet."}
 
                     </p>
 
                   )}
+
+                  {/* ==================================
+                      GOAL TASK BREAKDOWN
+                  ================================== */}
+
+                  <div
+                    style={{
+                      marginTop: "16px",
+                      paddingTop: "14px",
+                      borderTop:
+                        "1px solid rgba(255,255,255,0.10)",
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent:
+                          "space-between",
+                        alignItems:
+                          "center",
+                        gap: "10px",
+                        marginBottom:
+                          "10px",
+                      }}
+                    >
+
+                      <div>
+
+                        <strong>
+                          Goal Tasks
+                        </strong>
+
+                        <span
+                          style={{
+                            marginLeft:
+                              "8px",
+                            opacity:
+                              0.7,
+                          }}
+                        >
+                          {
+                            tasksForGoal.length
+                          }
+                        </span>
+
+                      </div>
+
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() =>
+                          addGoalTask(
+                            goal
+                          )
+                        }
+                        style={{
+                          padding:
+                            "7px 11px",
+                          fontSize:
+                            "13px",
+                        }}
+                      >
+
+                        <Plus size={15} />
+
+                        Add Task
+
+                      </button>
+
+                    </div>
+
+                    {tasksForGoal.length ===
+                    0 ? (
+
+                      <p
+                        style={{
+                          margin: 0,
+                          opacity:
+                            0.65,
+                        }}
+                      >
+                        No tasks yet.
+                        Add smaller
+                        tasks to
+                        complete
+                        this goal
+                        step by step.
+                      </p>
+
+                    ) : (
+
+                      <div
+                        style={{
+                          display:
+                            "grid",
+                          gap: "8px",
+                        }}
+                      >
+
+                        {tasksForGoal.map(
+                          (task) => (
+
+                            <div
+                              key={
+                                task.id
+                              }
+                              style={{
+                                display:
+                                  "flex",
+                                alignItems:
+                                  "center",
+                                justifyContent:
+                                  "space-between",
+                                gap: "10px",
+                                padding:
+                                  "9px 10px",
+                                borderRadius:
+                                  "10px",
+                                background:
+                                  "rgba(255,255,255,0.04)",
+                              }}
+                            >
+
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  flexDirection:
+                                    "column",
+                                  gap:
+                                    "3px",
+                                  minWidth:
+                                    0,
+                                }}
+                              >
+
+                                <span
+                                  style={{
+                                    textDecoration:
+                                      task.completed
+                                        ? "line-through"
+                                        : "none",
+                                    opacity:
+                                      task.completed
+                                        ? 0.6
+                                        : 1,
+                                  }}
+                                >
+                                  {
+                                    task.title
+                                  }
+                                </span>
+
+                                <small
+                                  style={{
+                                    opacity:
+                                      0.55,
+                                  }}
+                                >
+                                  {task.date
+                                    ? `Due: ${task.date}`
+                                    : "No date"}
+                                </small>
+
+                              </div>
+
+                              <div
+                                style={{
+                                  display:
+                                    "flex",
+                                  gap:
+                                    "6px",
+                                  flexShrink:
+                                    0,
+                                }}
+                              >
+
+                                <button
+                                  type="button"
+                                  className="edit-button"
+                                  title={
+                                    task.completed
+                                      ? "Mark incomplete"
+                                      : "Mark complete"
+                                  }
+                                  onClick={() =>
+                                    toggleGoalTask(
+                                      task
+                                    )
+                                  }
+                                >
+
+                                  {task.completed ? (
+                                    <Circle
+                                      size={
+                                        16
+                                      }
+                                    />
+                                  ) : (
+                                    <CheckCircle
+                                      size={
+                                        16
+                                      }
+                                    />
+                                  )}
+
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className="delete-button"
+                                  title="Delete goal task"
+                                  onClick={() =>
+                                    deleteGoalTask(
+                                      task
+                                    )
+                                  }
+                                >
+
+                                  <Trash2
+                                    size={
+                                      16
+                                    }
+                                  />
+
+                                </button>
+
+                              </div>
+
+                            </div>
+
+                          )
+                        )}
+
+                      </div>
+
+                    )}
+
+                  </div>
 
                   {/* DETAILS */}
 
@@ -1262,7 +1890,9 @@ function Goals() {
                         goal.status ||
                         "pending"
                       }
-                      onChange={(event) =>
+                      onChange={(
+                        event
+                      ) =>
                         updateGoalStatus(
                           goal.id,
                           event.target.value

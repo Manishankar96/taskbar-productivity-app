@@ -48,9 +48,7 @@ const BACKUP_COLLECTIONS = [
   "topics",
   "goals",
   "timetable",
-  "diet",
   "water",
-  "screenTime",
   "activities",
   "assessments",
   "quickTasks",
@@ -416,6 +414,12 @@ function Profile() {
       };
 
       await saveFirebaseProfile(normalizedProfile);
+
+      window.dispatchEvent(
+        new CustomEvent("taskbar-profile-changed", {
+          detail: normalizedProfile,
+        })
+      );
 
       const savedProfile = await getFirebaseProfile();
 

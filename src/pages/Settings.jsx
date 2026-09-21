@@ -19,6 +19,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import "./../styles/Settings.css";
+import { useTheme } from "../context/ThemeContext";
 
 import {
   getItemsFromFirestore,
@@ -235,6 +236,8 @@ function compressImage(
 }
 
 export default function Settings() {
+  const { theme, setTheme, themes } = useTheme();
+
   const [settings, setSettings] =
     useState(defaultSettings);
 
@@ -724,6 +727,20 @@ export default function Settings() {
         }
       );
 
+      // Keep the existing App.jsx background reader working.
+      // Firestore remains the persistent source of settings.
+      try {
+        localStorage.setItem(
+          "taskbar-custom-page-background",
+          dataUrl
+        );
+      } catch (storageError) {
+        console.error(
+          "Failed to update local background cache:",
+          storageError
+        );
+      }
+
       setCustomPageBackground(
         dataUrl
       );
@@ -806,6 +823,17 @@ export default function Settings() {
         }
       );
 
+      try {
+        localStorage.removeItem(
+          "taskbar-custom-page-background"
+        );
+      } catch (storageError) {
+        console.error(
+          "Failed to clear local background cache:",
+          storageError
+        );
+      }
+
       setCustomPageBackground("");
 
       window.dispatchEvent(
@@ -859,15 +887,32 @@ export default function Settings() {
           id: SETTINGS_DOCUMENT_ID,
           settings:
             defaultSettings,
-          customPageBackground,
+          customPageBackground: "",
           updatedAt:
             new Date().toISOString(),
         }
       );
 
+      try {
+        localStorage.removeItem(
+          "taskbar-settings"
+        );
+
+        localStorage.removeItem(
+          "taskbar-custom-page-background"
+        );
+      } catch (storageError) {
+        console.error(
+          "Failed to clear local settings cache:",
+          storageError
+        );
+      }
+
       setSettings(
         defaultSettings
       );
+
+      setCustomPageBackground("");
 
       window.dispatchEvent(
         new CustomEvent(
@@ -1362,7 +1407,129 @@ export default function Settings() {
           </label>
         </div>
 
+        {/* Theme Customization */}
+        <div className="settings-customizer">
+          <div className="settings-customizer-heading">
+            <div>
+              <span className="settings-eyebrow">
+                PERSONALIZE
+              </span>
+
+              <h3>Theme Customization</h3>
+
+              <p>
+                Choose a two-color gradient for the TASKBAR
+                interface. Your Profile video remains separate.
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-background-grid">
+            {themes.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTheme(item.id)}
+                aria-label={`Select ${item.name} theme`}
+                aria-pressed={theme === item.id}
+                style={{
+                  position: "relative",
+                  overflow: "hidden",
+                  minHeight: "150px",
+                  padding: "0",
+                  border:
+                    theme === item.id
+                      ? "2px solid rgba(255, 255, 255, 0.95)"
+                      : "1px solid rgba(255, 255, 255, 0.18)",
+                  borderRadius: "18px",
+                  background: "rgba(255, 255, 255, 0.08)",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  boxShadow:
+                    theme === item.id
+                      ? "0 0 0 2px rgba(255, 255, 255, 0.15), 0 12px 35px rgba(0, 0, 0, 0.28)"
+                      : "0 10px 30px rgba(0, 0, 0, 0.18)",
+                  transition:
+                    "transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      `linear-gradient(135deg, ${item.colors[0]} 0%, ${item.colors[1]} 100%)`,
+                  }}
+                />
+
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background:
+                      "linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.55))",
+                  }}
+                />
+
+                <div
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    minHeight: "150px",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "flex-end",
+                    padding: "18px",
+                  }}
+                >
+                  <strong
+                    style={{
+                      fontSize: "16px",
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {item.name}
+                  </strong>
+
+                  <span
+                    style={{
+                      marginTop: "6px",
+                      fontSize: "12px",
+                      opacity: 0.88,
+                    }}
+                  >
+                    {item.description}
+                  </span>
+
+                  {theme === item.id && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        width: "fit-content",
+                        marginTop: "10px",
+                        padding: "5px 9px",
+                        borderRadius: "999px",
+                        background: "rgba(255, 255, 255, 0.18)",
+                        border:
+                          "1px solid rgba(255, 255, 255, 0.28)",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      ACTIVE
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Background Customization */}
+
         <div className="settings-customizer">
           <div className="settings-customizer-heading">
             <div>

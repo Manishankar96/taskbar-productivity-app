@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getTopics, saveTopics } from "../../utils/db";
+import Modal from "../../components/common/Modal";
 
 import {
   BookOpen,
@@ -811,16 +812,14 @@ function Learning() {
       ================================== */}
 
       {showForm && (
-        <section
-          className="add-topic-card"
-          style={{
-            display: "block",
-            position: "relative",
-            zIndex: 100,
-          }}
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="learning-form-modal"
         >
-
-          <div className="add-topic-header">
+          <section className="add-topic-card">
+<div className="add-topic-header">
 
             <h2>
               {editingTopic
@@ -1020,6 +1019,7 @@ function Learning() {
           </form>
 
         </section>
+        </Modal>
       )}
 
       {/* ==================================

@@ -1,0 +1,750 @@
+/* =========================================================
+   TASKBAR — PRODUCTIVITY.CSS
+   Productivity page-specific styles.
+   JSX functionality is unchanged.
+
+   Pages covered:
+   - Daily Targets
+   - Quick Notes
+   - Quick Tasks
+   - Reminders
+   - Reports / Insights
+   - Todo List
+   ========================================================= */
+
+/* =========================================================
+   SHARED PRODUCTIVITY MODULE LAYOUT
+   ========================================================= */
+
+.module-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.module-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.module-page .page-header > div {
+  min-width: 0;
+}
+
+.module-page .page-header h1 {
+  margin: 0;
+}
+
+.module-page .page-header p {
+  margin: 6px 0 0;
+}
+
+.module-page .add-topic-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 17px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-page .stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.module-page .stat-card {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 18px;
+  box-sizing: border-box;
+}
+
+.module-page .stat-card > svg {
+  flex-shrink: 0;
+}
+
+.module-page .section-card,
+.module-page .learning-section {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 24px;
+  border-radius: 20px;
+}
+
+.module-page .section-title,
+.module-page .topic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.module-page .section-title {
+  margin-bottom: 18px;
+}
+
+.module-page .section-title h2,
+.module-page .topic-header h2 {
+  margin: 0;
+}
+
+.module-page .topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.module-page .topic-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 13px;
+  box-sizing: border-box;
+}
+
+.module-page .topic-information {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.module-page .topic-information strong,
+.module-page .topic-information span {
+  overflow-wrap: anywhere;
+}
+
+.module-page .topic-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.module-page .edit-button,
+.module-page .delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.module-page .empty-topics {
+  margin: 0;
+  padding: 18px 4px;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   SHARED PRODUCTIVITY FORMS
+   ========================================================= */
+
+.module-page .module-form-card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px;
+  margin: 20px 0;
+  border-radius: 20px;
+}
+
+.module-page .add-topic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.module-page .add-topic-header h2 {
+  margin: 0;
+  color: #fff;
+}
+
+.module-page .close-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+}
+
+.module-page .grid-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.module-page .form-group {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.module-page .form-group label {
+  font-weight: 700;
+}
+
+.module-page .form-group input,
+.module-page .form-group select,
+.module-page .form-group textarea {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+  outline: none;
+}
+
+.module-page .form-group textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.module-page .save-topic-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  grid-column: 1 / -1;
+}
+
+/* Keep modal form headings readable. */
+.daily-targets-form-modal .add-topic-header h2,
+.quick-notes-form-modal .add-topic-header h2,
+.quick-tasks-form-modal .add-topic-header h2,
+.reminders-form-modal .add-topic-header h2,
+.todo-form-modal .add-topic-header h2 {
+  color: #fff;
+}
+
+/* =========================================================
+   DAILY TARGETS
+   ========================================================= */
+
+.daily-targets-form-modal {
+  width: min(720px, 100%);
+  max-width: 720px;
+}
+
+.daily-targets-form-modal .module-form-card {
+  margin: 0;
+}
+
+.daily-targets-form-modal .learning-section {
+  margin-top: 20px;
+}
+
+.daily-targets-form-modal .topic-header {
+  margin-bottom: 14px;
+}
+
+/* =========================================================
+   QUICK NOTES
+   ========================================================= */
+
+.quick-notes-form-modal {
+  width: min(760px, 100%);
+  max-width: 760px;
+}
+
+.quick-notes-form-modal .module-form-card {
+  margin: 0;
+}
+
+.module-page .quick-notes-search {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.module-page .quick-notes-search input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+}
+
+/* =========================================================
+   QUICK TASKS
+   ========================================================= */
+
+.quick-tasks-form-modal {
+  width: min(760px, 100%);
+  max-width: 760px;
+}
+
+.quick-tasks-form-modal .module-form-card {
+  margin: 0;
+}
+
+.module-page .task-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.module-page .task-checkbox-label input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.module-page .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.module-page .topic-row[class*="priority-"] {
+  min-width: 0;
+}
+
+/* =========================================================
+   REMINDERS
+   ========================================================= */
+
+.reminders-form-modal {
+  width: min(720px, 100%);
+  max-width: 720px;
+}
+
+.reminders-form-modal .module-form-card {
+  margin: 0;
+}
+
+.module-page .reminder-notification-message {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   TODO LIST
+   ========================================================= */
+
+.todo-form-modal {
+  width: min(760px, 100%);
+  max-width: 760px;
+}
+
+.todo-form-modal .module-form-card {
+  margin: 0;
+}
+
+.module-page .todo-linked-task {
+  min-width: 0;
+}
+
+.module-page .todo-archive-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* =========================================================
+   REPORTS / INSIGHTS
+   ========================================================= */
+
+.reports-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.reports-page .page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.reports-page .page-header > div {
+  min-width: 0;
+}
+
+.reports-page .page-header h1 {
+  margin: 0;
+}
+
+.reports-page .page-header p {
+  margin: 6px 0 0;
+}
+
+.reports-page .add-topic-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 17px;
+  border: 0;
+  border-radius: 11px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.reports-page .insights-intro-card,
+.reports-page .insights-next-card,
+.reports-page .report-overview,
+.reports-page .report-panel,
+.reports-page .reports-history,
+.reports-page .reports-footer {
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 20px;
+}
+
+.reports-page .insights-intro-card,
+.reports-page .insights-next-card,
+.reports-page .report-overview,
+.reports-page .report-panel,
+.reports-page .reports-history {
+  padding: 24px;
+}
+
+.reports-page .insights-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.reports-page .insight-card {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 18px;
+  box-sizing: border-box;
+}
+
+.reports-page .insight-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.reports-page .insight-card-body {
+  min-width: 0;
+}
+
+.reports-page .report-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.reports-page .report-card {
+  min-width: 0;
+  padding: 18px;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.reports-page .reports-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.reports-page .report-panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.reports-page .section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.reports-page .section-heading h2,
+.reports-page .section-heading h3 {
+  margin: 0;
+}
+
+.reports-page .report-large-number {
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.reports-page .report-description {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.reports-page .report-progress {
+  width: 100%;
+  min-width: 0;
+}
+
+.reports-page .report-progress-bar {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.reports-page .report-mini-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reports-page .report-chart {
+  width: 100%;
+  min-width: 0;
+  min-height: 260px;
+}
+
+.reports-page .reports-history {
+  margin-top: 20px;
+}
+
+.reports-page .history-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.reports-page .history-list,
+.reports-page .history-detail {
+  min-width: 0;
+}
+
+.reports-page .history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reports-page .history-detail {
+  padding: 20px;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.reports-page .report-history-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.reports-page .empty-state {
+  padding: 24px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.reports-page .reports-footer {
+  margin-top: 20px;
+}
+
+/* =========================================================
+   COMMON BUTTON SAFETY
+   ========================================================= */
+
+.module-page .add-topic-button,
+.module-page .save-topic-button,
+.reports-page .add-topic-button {
+  color: #fff;
+}
+
+.module-page button svg,
+.reports-page button svg {
+  flex-shrink: 0;
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1100px) {
+  .module-page .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-page .insights-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reports-page .report-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .module-page .grid-form {
+    grid-template-columns: 1fr;
+  }
+
+  .module-page .two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-page .reports-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-page .history-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .module-page .page-header,
+  .reports-page .page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .module-page .add-topic-button,
+  .reports-page .add-topic-button {
+    width: 100%;
+  }
+
+  .module-page .module-form-card,
+  .module-page .section-card,
+  .module-page .learning-section,
+  .reports-page .insights-intro-card,
+  .reports-page .insights-next-card,
+  .reports-page .report-overview,
+  .reports-page .report-panel,
+  .reports-page .reports-history {
+    padding: 18px;
+  }
+
+  .reports-page .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-page .report-mini-stats,
+  .reports-page .report-history-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-page .report-chart {
+    min-height: 220px;
+  }
+}
+
+@media (max-width: 600px) {
+  .module-page .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-page .topic-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .module-page .topic-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .module-page .save-topic-button {
+    width: 100%;
+  }
+
+  .module-page .add-topic-header {
+    align-items: flex-start;
+  }
+
+  .module-page .form-group textarea {
+    min-height: 110px;
+  }
+
+  .reports-page .report-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .reports-page .report-large-number {
+    font-size: 34px;
+  }
+}
+/* =========================================================
+   TASKBAR DARK THEME — PRODUCTIVITY CARD HEADINGS
+   ========================================================= */
+
+.main-content .module-page .stat-card h1,
+.main-content .module-page .stat-card h2,
+.main-content .module-page .stat-card h3,
+.main-content .module-page .stat-card strong,
+
+.main-content .module-page .section-card h1,
+.main-content .module-page .section-card h2,
+.main-content .module-page .section-card h3,
+
+.main-content .module-page .learning-section h1,
+.main-content .module-page .learning-section h2,
+.main-content .module-page .learning-section h3,
+
+.main-content .reports-page .insight-card h1,
+.main-content .reports-page .insight-card h2,
+.main-content .reports-page .insight-card h3,
+
+.main-content .reports-page .report-card h1,
+.main-content .reports-page .report-card h2,
+.main-content .reports-page .report-card h3,
+
+.main-content .reports-page .section-heading h2,
+.main-content .reports-page .section-heading h3 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}

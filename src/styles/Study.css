@@ -1,0 +1,2800 @@
+/* STUDY.CSS — extracted from App.css
+Study pages: Learning, Goals, Timetable, Assessments, Study Sessions
+Only Study-specific selectors are moved here. Global/shared layout styles remain in App.css. */
+
+.learning-page,
+.goals-page,
+.module-page {
+  width: 100%;
+  max-width: 1450px;
+
+  margin: 0 auto;
+}
+
+.learning-stat,
+.learning-overview,
+.learning-section,
+.add-topic-card,
+.goal-form-card,
+.goal-card,
+.module-form-card,
+.assessment-item {
+  background:
+    rgba(255, 255, 255, 0.96);
+
+  border: 1px solid var(--border);
+
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-sm);
+
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition),
+    border-color var(--transition);
+}
+
+.learning-stat:hover,
+.goal-card:hover {
+  transform: translateY(-3px);
+
+  box-shadow: var(--shadow-md);
+
+  border-color: #d5deea;
+}
+
+.assessment-item {
+  padding: 14px 0;
+
+  border: none;
+
+  border-bottom:
+    1px solid var(--border-light);
+
+  border-radius: 0;
+
+  box-shadow: none;
+}
+
+.assessment-item:last-child {
+  border-bottom: none;
+}
+
+.assessment-item strong {
+  display: block;
+
+  font-size: 14px;
+
+  margin-bottom: 3px;
+}
+
+.assessment-item span {
+  display: block;
+
+  color: var(--text-muted);
+
+  font-size: 13px;
+}
+
+.learning-stats,
+.goal-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 18px;
+
+  margin-bottom: 22px;
+}
+
+.learning-stat,
+.goal-stat-card {
+  position: relative;
+
+  padding: 21px;
+
+  overflow: hidden;
+}
+
+.learning-stat::after,
+.goal-stat-card::after {
+  content: "";
+
+  position: absolute;
+
+  right: -35px;
+  bottom: -35px;
+
+  width: 100px;
+  height: 100px;
+
+  border-radius: 50%;
+
+  background:
+    rgba(37, 99, 235, 0.045);
+}
+
+.learning-stat span,
+.goal-stat-card span {
+  display: block;
+
+  color: var(--text-muted);
+
+  font-size: 13px;
+}
+
+.learning-stat strong,
+.goal-stat-card strong {
+  display: block;
+
+  margin-top: 5px;
+
+  font-size: 28px;
+
+  line-height: 1.1;
+
+  letter-spacing: -0.5px;
+}
+
+.learning-overview {
+  padding: 26px;
+
+  margin-bottom: 20px;
+}
+
+.learning-progress-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 15px;
+}
+
+.learning-progress-header span {
+  color: var(--text-muted);
+
+  font-size: 13px;
+}
+
+.learning-progress-header h2 {
+  margin-top: 3px;
+
+  font-size: 38px;
+
+  letter-spacing: -1px;
+}
+
+.learning-overview > p {
+  color: var(--text-muted);
+
+  margin-top: 9px;
+}
+
+.learning-stat svg {
+  color: var(--primary);
+
+  margin-bottom: 12px;
+}
+
+.learning-section {
+  padding: 26px;
+}
+
+.topic-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 20px;
+
+  margin-bottom: 20px;
+}
+
+.topic-header h2 {
+  font-size: 21px;
+
+  margin-bottom: 4px;
+}
+
+.topic-header p {
+  color: var(--text-muted);
+
+  font-size: 14px;
+}
+
+.topic-header select,
+.topic-row select {
+  min-width: 145px;
+
+  padding: 10px 12px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 10px;
+
+  background: white;
+
+  color: var(--text);
+
+  cursor: pointer;
+
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.topic-header select:hover,
+.topic-row select:hover {
+  border-color: #93c5fd;
+}
+
+.topic-header select:focus,
+.topic-row select:focus {
+  outline: none;
+
+  border-color: var(--primary);
+
+  box-shadow:
+    0 0 0 4px
+      rgba(37, 99, 235, 0.1);
+}
+
+.topic-list {
+  display: flex;
+
+  flex-direction: column;
+}
+
+.topic-row {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 18px;
+
+  padding: 16px 4px;
+
+  border-bottom:
+    1px solid var(--border-light);
+
+  transition:
+    background var(--transition),
+    padding-left var(--transition);
+}
+
+.topic-row:hover {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(37, 99, 235, 0.025),
+      transparent
+    );
+
+  padding-left: 10px;
+}
+
+.topic-row:last-child {
+  border-bottom: none;
+}
+
+.topic-information {
+  flex: 1;
+}
+
+.topic-row strong {
+  display: block;
+
+  font-size: 14px;
+}
+
+.topic-row span {
+  display: block;
+
+  color: var(--text-muted);
+
+  font-size: 13px;
+
+  margin-top: 4px;
+}
+
+.topic-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.add-topic-button,
+.save-topic-button {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  border-radius: 10px;
+
+  cursor: pointer;
+
+  font-weight: 700;
+
+  transition:
+    transform var(--transition),
+    box-shadow var(--transition),
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.add-topic-button,
+.save-topic-button {
+  border: none;
+
+  color: white;
+
+  background:
+    linear-gradient(
+      135deg,
+      #2563eb,
+      #1d4ed8
+    );
+
+  padding: 11px 17px;
+
+  box-shadow:
+    0 6px 15px
+      rgba(37, 99, 235, 0.2);
+}
+
+.add-topic-button:hover,
+.save-topic-button:hover {
+  transform:
+    translateY(-2px);
+
+  box-shadow:
+    0 10px 22px
+      rgba(37, 99, 235, 0.28);
+
+  background:
+    linear-gradient(
+      135deg,
+      #3b82f6,
+      #2563eb
+    );
+}
+
+.add-topic-button:active,
+.save-topic-button:active {
+  transform:
+    translateY(0);
+}
+
+.add-topic-button:focus-visible,
+.save-topic-button:focus-visible {
+  outline: none;
+
+  box-shadow:
+    0 0 0 4px
+      rgba(37, 99, 235, 0.18),
+    0 8px 20px
+      rgba(37, 99, 235, 0.2);
+}
+
+.add-topic-card,
+.goal-form-card,
+.module-form-card {
+  padding: 24px;
+
+  margin-bottom: 20px;
+
+  animation:
+    cardEnter 260ms ease both;
+}
+
+.add-topic-header,
+.goal-form-header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  margin-bottom: 20px;
+}
+
+.add-topic-header h2,
+.goal-form-header h2 {
+  font-size: 21px;
+}
+
+.add-topic-header p,
+.goal-form-header p {
+  color: var(--text-muted);
+
+  font-size: 13px;
+
+  margin-top: 3px;
+}
+
+.add-topic-card form {
+  display: grid;
+
+  grid-template-columns:
+    repeat(6, minmax(0, 1fr));
+
+  gap: 15px;
+
+  align-items: end;
+}
+
+.goal-form {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 16px;
+}
+
+.goals-page {
+  max-width: 1450px;
+  margin: 0 auto;
+}
+
+.goal-add-area {
+  display: flex;
+
+  justify-content: flex-end;
+
+  margin-bottom: 20px;
+}
+
+.goals-section {
+  background: transparent;
+}
+
+.goals-section-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 18px;
+}
+
+.goals-section-header h2 {
+  font-size: 22px;
+}
+
+.goals-section-header p {
+  color: var(--text-muted);
+
+  font-size: 14px;
+}
+
+.goals-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 18px;
+}
+
+.goal-card {
+  padding: 24px;
+
+  position: relative;
+
+  overflow: hidden;
+}
+
+.goal-card::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 0;
+
+  width: 4px;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      180deg,
+      #2563eb,
+      #7c3aed
+    );
+
+  opacity: 0;
+
+  transition:
+    opacity var(--transition);
+}
+
+.goal-card:hover::before {
+  opacity: 1;
+}
+
+.goal-card-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: flex-start;
+
+  gap: 18px;
+
+  margin-bottom: 18px;
+}
+
+.goal-card-header h3 {
+  font-size: 19px;
+
+  letter-spacing: -0.2px;
+}
+
+.goal-card-header p {
+  color: var(--text-muted);
+
+  margin-top: 4px;
+
+  font-size: 14px;
+}
+
+.goal-actions {
+  display: flex;
+
+  gap: 8px;
+}
+
+.goal-skill {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  color: var(--primary);
+
+  background: var(--primary-light);
+
+  border-radius: 999px;
+
+  padding: 6px 10px;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  margin-bottom: 18px;
+}
+
+.goal-progress-header {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  margin-bottom: 8px;
+}
+
+.goal-progress-header span {
+  color: var(--text-secondary);
+
+  font-size: 13px;
+
+  font-weight: 600;
+}
+
+.goal-progress-header strong {
+  font-size: 14px;
+
+  color: var(--primary);
+}
+
+.goal-progress {
+  width: 100%;
+
+  height: 10px;
+
+  overflow: hidden;
+
+  background: #e9eef5;
+
+  border-radius: 999px;
+
+  margin-bottom: 10px;
+}
+
+.goal-progress-fill {
+  height: 100%;
+
+  background:
+    linear-gradient(
+      90deg,
+      #2563eb,
+      #3b82f6,
+      #7c3aed
+    );
+
+  border-radius: inherit;
+
+  transition:
+    width 650ms
+    cubic-bezier(0.4, 0, 0.2, 1);
+
+  box-shadow:
+    0 0 12px
+      rgba(37, 99, 235, 0.2);
+}
+
+.goal-topic-count {
+  color: var(--text-muted);
+
+  font-size: 12px;
+
+  margin-bottom: 18px;
+}
+
+.goal-details {
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr auto;
+
+  align-items: center;
+
+  gap: 12px;
+
+  padding-top: 16px;
+
+  border-top:
+    1px solid var(--border-light);
+}
+
+.goal-details > div {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  color: var(--text-muted);
+
+  font-size: 13px;
+}
+
+.goal-details svg {
+  color: var(--primary);
+}
+
+.goal-details select {
+  min-width: 125px;
+
+  padding: 8px 10px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 9px;
+
+  background: white;
+
+  cursor: pointer;
+
+  font-size: 13px;
+
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.goal-details select:focus {
+  outline: none;
+
+  border-color: var(--primary);
+
+  box-shadow:
+    0 0 0 3px
+      rgba(37, 99, 235, 0.1);
+}
+
+.goal-stat-card {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 5px;
+
+  min-height: 145px;
+}
+
+.goal-stat-card svg {
+  color: var(--primary);
+
+  margin-bottom: 8px;
+}
+
+.skill-progress-section {
+  margin-top: 20px;
+}
+
+.skill-progress-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 14px;
+}
+
+.skill-progress-row {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 12px;
+
+  border-radius: 10px;
+
+  transition:
+    background var(--transition);
+}
+
+.skill-progress-row:hover {
+  background: var(--surface-soft);
+}
+
+.skill-progress-info {
+  min-width: 170px;
+}
+
+.skill-progress-info strong {
+  display: block;
+
+  font-size: 14px;
+}
+
+.skill-progress-info span {
+  display: block;
+
+  color: var(--text-muted);
+
+  font-size: 12px;
+}
+
+.skill-progress-bar-wrap {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  flex: 1;
+
+  max-width: 420px;
+}
+
+.skill-progress-bar-wrap .progress-bar {
+  flex: 1;
+
+  margin-top: 0;
+}
+
+.skill-progress-percent {
+  width: 45px;
+
+  text-align: right;
+
+  font-size: 13px;
+
+  font-weight: 800;
+}
+
+.skill-search-input {
+  min-width: 220px;
+
+  padding: 10px 13px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 10px;
+
+  background: white;
+
+  outline: none;
+
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+.skill-search-input:focus {
+  border-color: var(--primary);
+
+  box-shadow:
+    0 0 0 4px
+      rgba(37, 99, 235, 0.09);
+}
+
+.topic-row.priority-high {
+  border-left:
+    4px solid #ef4444;
+
+  padding-left: 10px;
+}
+
+.topic-row.priority-medium {
+  border-left:
+    4px solid #f59e0b;
+
+  padding-left: 10px;
+}
+
+.topic-row.priority-low {
+  border-left:
+    4px solid #94a3b8;
+
+  padding-left: 10px;
+}
+
+.empty-state,
+.empty-topics {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  justify-content: center;
+
+  text-align: center;
+
+  padding: 50px 20px;
+
+  color: var(--text-muted);
+}
+
+.empty-state svg,
+.empty-topics svg {
+  color: #94a3b8;
+
+  margin-bottom: 12px;
+}
+
+.empty-state h3 {
+  color: var(--text);
+
+  font-size: 18px;
+
+  margin-bottom: 5px;
+}
+
+.empty-state p {
+  max-width: 420px;
+
+  font-size: 13px;
+
+  margin-bottom: 18px;
+}
+
+.grid-form {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 16px;
+}
+
+.grid-form .full-width {
+  grid-column: 1 / -1;
+}
+
+.module-page table {
+  width: 100%;
+
+  border-collapse: separate;
+
+  border-spacing: 0;
+
+  overflow: hidden;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 14px;
+
+  background: white;
+}
+
+.module-page th {
+  padding: 13px 15px;
+
+  background:
+    #f8fafc;
+
+  color: var(--text-secondary);
+
+  font-size: 12px;
+
+  text-align: left;
+
+  font-weight: 800;
+
+  border-bottom:
+    1px solid var(--border);
+}
+
+.module-page td {
+  padding: 13px 15px;
+
+  color: var(--text-secondary);
+
+  font-size: 13px;
+
+  border-bottom:
+    1px solid var(--border-light);
+}
+
+.module-page tbody tr {
+  transition:
+    background var(--transition);
+}
+
+.module-page tbody tr:hover {
+  background:
+    #f8fbff;
+}
+
+.module-page tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.module-page a:not(.sidebar a) {
+  color: var(--primary);
+
+  text-decoration: none;
+
+  transition:
+    color var(--transition);
+}
+
+.module-page a:hover {
+  color: var(--primary-dark);
+}
+
+@media (max-width: 1200px) {
+
+  .learning-stats,
+.goal-stats {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .add-topic-card form {
+    grid-template-columns:
+      repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+
+  .goal-details {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .goal-details select {
+    grid-column: 1 / -1;
+
+    width: 100%;
+  }
+}
+
+@media (max-width: 700px) {
+
+  .learning-stats,
+.goal-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .topic-header {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .topic-header select {
+    width: 100%;
+  }
+
+  .skill-search-input {
+    width: 100%;
+
+    min-width: 0;
+  }
+
+  .skill-progress-row {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .skill-progress-bar-wrap {
+    width: 100%;
+
+    max-width: none;
+  }
+
+  .add-topic-card form {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-form {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-form .full-width {
+    grid-column: auto;
+  }
+
+  .goal-card {
+    padding: 19px;
+  }
+
+  .goal-card-header {
+    flex-direction: column;
+
+    align-items: flex-start;
+  }
+
+  .goal-actions {
+    align-self: flex-end;
+  }
+
+  .goal-details {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-details select {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 500px) {
+
+  .learning-section,
+.learning-overview,
+.add-topic-card,
+.goal-form-card {
+    padding: 17px;
+  }
+
+  .goal-card-header h3 {
+    font-size: 17px;
+  }
+}
+
+.learning-stat,
+.learning-overview,
+.learning-section,
+.add-topic-card,
+.goal-form-card,
+.goal-card,
+.module-form-card,
+.assessment-item {
+  position: relative;
+  overflow: hidden;
+}
+
+.learning-stat::before,
+.goal-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -130%;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,.72), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+
+.learning-stat:hover::before,
+.goal-card:hover::before {
+  animation: cardShine .85s ease-out;
+}
+
+.learning-stat,
+.goal-card {
+  transition:
+    transform .38s var(--premium-ease),
+    box-shadow .38s ease,
+    border-color .38s ease,
+    background .38s ease;
+}
+
+.learning-stat:hover,
+.goal-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 55px rgba(15,23,42,.11);
+  border-color: rgba(96,165,250,.35);
+}
+
+.add-topic-button,
+.save-topic-button {
+  transition:
+    transform .25s var(--premium-ease),
+    box-shadow .25s ease,
+    background .25s ease,
+    border-color .25s ease,
+    color .25s ease;
+}
+
+.add-topic-button:hover,
+.save-topic-button:hover {
+  transform: translateY(-2px);
+}
+
+.add-topic-button:active,
+.save-topic-button:active {
+  transform: translateY(1px) scale(.985);
+}
+
+.save-topic-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.save-topic-button::after,
+.add-topic-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  transform: skewX(-18deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.4), transparent);
+  pointer-events: none;
+}
+
+.save-topic-button:hover::after,
+.add-topic-button:hover::after {
+  animation: buttonShine .75s ease-out;
+}
+
+.profile-form .save-topic-button {
+  grid-column: 1 / -1;
+}
+
+.profile-form .save-topic-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(37,99,235,.22);
+}
+
+.profile-form .save-topic-button:hover {
+  box-shadow: 0 16px 34px rgba(37,99,235,.3);
+}
+
+.backup-actions .add-topic-button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 11px;
+}
+
+.module-page tbody tr {
+  transition: transform .25s var(--premium-ease), background .25s ease, box-shadow .25s ease;
+}
+
+.module-page tbody tr:hover {
+  transform: translateX(3px);
+}
+
+.empty-state svg,
+.empty-topics svg {
+  animation: emptyIconFloat 3s ease-in-out infinite;
+}
+
+@media (max-width: 800px) {
+
+  .profile-form .save-topic-button {
+    grid-column: auto;
+  }
+}
+
+.learning-page,
+.goals-page,
+.module-page {
+  animation: premiumPageIn .55s var(--premium-ease) both;
+}
+
+.goal-card,
+.goal-stat-card,
+.module-form-card,
+.add-topic-card,
+.assessment-item {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--premium-line);
+  background: var(--premium-panel);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--premium-shadow);
+  transition: transform .35s var(--premium-ease), box-shadow .35s var(--premium-ease), border-color .35s ease, background .35s ease;
+}
+
+.goal-card::before,
+.goal-stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(255,255,255,.48) 48%, transparent 70%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.goal-card:hover,
+.goal-stat-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--premium-line-strong);
+  box-shadow: var(--premium-shadow-hover);
+}
+
+.goal-card:hover::before,
+.goal-stat-card:hover::before {
+  animation: premiumShine .9s var(--premium-ease) forwards;
+}
+
+.learning-stats,
+.goal-stats {
+  gap: 18px;
+}
+
+.learning-stat,
+.goal-stat-card {
+  border-radius: 20px;
+}
+
+.learning-stat h3,
+.goal-stat-card h3 {
+  letter-spacing: -.035em;
+  font-weight: 800;
+}
+
+.learning-stat:hover .card-icon,
+.goal-stat-card:hover .card-icon {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+.save-topic-button,
+.add-topic-button {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  transition: transform .2s var(--premium-ease), box-shadow .25s ease, filter .25s ease;
+}
+
+.save-topic-button,
+.add-topic-button {
+  background-image: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  box-shadow: 0 10px 24px rgba(37,99,235,.22);
+}
+
+.save-topic-button::before,
+.add-topic-button::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 70%;
+  height: 100%;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent);
+}
+
+.save-topic-button:hover,
+.add-topic-button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.035);
+  box-shadow: 0 14px 30px rgba(15,23,42,.16);
+}
+
+.save-topic-button:hover::before,
+.add-topic-button:hover::before {
+  animation: premiumButtonShine .7s ease forwards;
+}
+
+.save-topic-button:active,
+.add-topic-button:active {
+  transform: translateY(1px) scale(.98);
+}
+
+.skill-progress-bar-wrap,
+.goal-progress {
+  position: relative;
+  overflow: hidden;
+  background: #e8eef6;
+  box-shadow: inset 0 1px 2px rgba(15,23,42,.07);
+}
+
+.goal-progress-fill,
+.skill-progress-bar-wrap > * {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, #2563eb, #4f46e5, #7c3aed);
+  box-shadow: 0 4px 14px rgba(79,70,229,.22);
+}
+
+.goal-progress-fill::after,
+.skill-progress-bar-wrap > *::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+  transform: translateX(-100%);
+  animation: premiumProgressShine 2.6s linear infinite;
+}
+
+.goal-card {
+  border-radius: 20px;
+}
+
+.goal-card-header,
+.goal-progress-header,
+.learning-progress-header {
+  gap: 12px;
+}
+
+.goal-skill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(37,99,235,.08);
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.learning-section,
+.skill-progress-section,
+.learning-overview {
+  border-radius: 22px;
+}
+
+.skill-progress-row {
+  transition: transform .25s ease, background .25s ease;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.skill-progress-row:hover {
+  transform: translateX(4px);
+  background: rgba(37,99,235,.035);
+}
+
+.topic-row,
+.assessment-item {
+  border-radius: 16px;
+  transition: transform .25s var(--premium-ease), background .25s ease, box-shadow .25s ease;
+}
+
+.topic-row:hover,
+.assessment-item:hover {
+  transform: translateX(4px);
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 12px 28px rgba(15,23,42,.08);
+}
+
+.empty-state,
+.empty-topics {
+  border-radius: 18px;
+  background: rgba(255,255,255,.58);
+}
+
+@media (max-width: 760px) {
+  .learning-stats,
+.goal-stats { grid-template-columns: 1fr; }
+  .goal-card:hover,
+.goal-stat-card:hover { transform: translateY(-3px); }
+}
+
+.module-page textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition),
+    background var(--transition);
+}
+
+.module-page textarea:hover {
+  border-color: #cbd5e1;
+}
+
+.module-page textarea:focus {
+  outline: none;
+  background: #ffffff;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09);
+}
+
+.module-page .form-group small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.module-page input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.module-page button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.module-page button:disabled:hover {
+  transform: none;
+  filter: none;
+}
+
+.module-page .topic-information {
+  min-width: 0;
+}
+
+.module-page .topic-information strong,
+.module-page .topic-information span {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .module-page .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .module-page .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .module-page .page-header .add-topic-button {
+    width: 100%;
+  }
+
+  .module-page .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .module-page .section-card,
+.module-page .learning-section,
+.module-page .module-form-card {
+    padding: 18px;
+  }
+
+  .module-page .grid-form {
+    grid-template-columns: 1fr;
+  }
+
+  .module-page .grid-form .full-width {
+    grid-column: auto;
+  }
+
+  .module-page .topic-row {
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .module-page .topic-information {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .module-page .topic-row {
+    flex-direction: column;
+  }
+
+  .module-page .topic-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+.skill-progress-bar-wrap .progress-bar,
+.goal-progress {
+  background: #e7edf5 !important;
+  background-image: none !important;
+}
+
+.skill-progress-bar-wrap .progress-bar > *,
+.goal-progress-fill {
+  background-image: linear-gradient(90deg, #5f8ff0, #7c3aed) !important;
+}
+
+.topic-header p {
+  color: #334155 !important;
+}
+
+.learning-stat,
+.learning-overview,
+.learning-section,
+.add-topic-card,
+.goal-form-card,
+.goal-card,
+.module-form-card,
+.assessment-item {
+  background: rgba(255, 255, 255, .97) !important;
+  color: #111827 !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 20%, transparent) !important;
+}
+
+.learning-stat strong,
+.learning-stat h2,
+.learning-overview h2,
+.learning-section h2,
+.goal-card h2,
+.goal-card h3 {
+  color: #111827 !important;
+}
+
+.learning-stat span,
+.learning-overview > p,
+.learning-progress-header span,
+.goal-card p,
+.topic-header p,
+.topic-row span,
+.goal-details > div {
+  color: #475569 !important;
+}
+
+.learning-page .page-header h1,
+.learning-page .learning-overview h2,
+.learning-page .learning-section h2,
+.learning-page .topic-header h2,
+.learning-page .learning-progress-header h2,
+.learning-page .learning-stat strong,
+.learning-page .learning-stat .stat-value,
+.learning-page .learning-section .section-title h2 {
+  color: var(--taskbar-theme-main) !important;
+  background: none !important;
+  -webkit-text-fill-color: var(--taskbar-theme-main) !important;
+}
+
+.learning-page .learning-overview > p,
+.learning-page .learning-progress-header span,
+.learning-page .topic-header p,
+.learning-page .learning-stat span {
+  color: #475569 !important;
+}
+
+.learning-page .primary-button,
+.learning-page .add-topic-button,
+.learning-page .save-topic-button,
+.learning-page .import-button {
+  color: #ffffff !important;
+  background:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-main),
+      var(--taskbar-theme-main) 48%,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000) 100%
+    ) !important;
+  border-color: var(--taskbar-theme-main) !important;
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--taskbar-theme-main) 28%, transparent) !important;
+}
+
+.learning-page .primary-button:hover,
+.learning-page .add-topic-button:hover,
+.learning-page .save-topic-button:hover,
+.learning-page .import-button:hover {
+  background:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-main),
+      var(--taskbar-theme-main),
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000)
+    ) !important;
+}
+
+.learning-page .progress-fill,
+.learning-page .skill-progress-bar-wrap .progress-bar > *,
+.learning-page .goal-progress-fill {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000) 0%,
+      var(--taskbar-theme-main) 50%,
+      var(--taskbar-theme-main) 100%
+    ) !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--taskbar-theme-main) 30%, transparent) !important;
+}
+
+.learning-page .progress-bar,
+.learning-page .progress-track,
+.learning-page .skill-progress-bar-wrap .progress-bar {
+  background: #e5e7eb !important;
+  background-image: none !important;
+}
+
+.learning-page .topic-header select,
+.learning-page .topic-row select {
+  color: #111827 !important;
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+}
+
+.learning-page .topic-header select:hover,
+.learning-page .topic-row select:hover {
+  border-color: var(--taskbar-theme-main) !important;
+}
+
+.learning-page .topic-header select:focus,
+.learning-page .topic-row select:focus {
+  border-color: var(--taskbar-theme-main) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--taskbar-theme-main) 10%, transparent) !important;
+}
+
+.learning-page .topic-row:hover {
+  background: color-mix(in srgb, var(--taskbar-theme-main) 6%, transparent) !important;
+}
+
+.learning-page a:not(.sidebar a),
+.learning-page .view-button {
+  color: var(--taskbar-theme-main) !important;
+}
+
+.add-topic-button,
+.save-topic-button {
+  color: #ffffff !important;
+  background:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-main),
+      var(--taskbar-theme-main) 48%,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000)
+    ) !important;
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--taskbar-theme-main) 25%, transparent) !important;
+}
+
+.add-topic-button:hover,
+.save-topic-button:hover {
+  background:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-main),
+      var(--taskbar-theme-main),
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000)
+    ) !important;
+}
+
+.goal-progress-fill {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000),
+      var(--taskbar-theme-main),
+      var(--taskbar-theme-main)
+    ) !important;
+}
+
+.learning-stat:hover,
+.learning-overview:hover,
+.learning-section:hover,
+.goal-card:hover {
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 38%, transparent) !important;
+  box-shadow:
+    0 20px 50px rgba(0,0,0,.30),
+    0 0 24px color-mix(in srgb, var(--taskbar-theme-main) 10%, transparent) !important;
+}
+
+.learning-page .skill-progress-percent {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: var(--taskbar-theme-main) !important;
+  -webkit-text-fill-color: var(--taskbar-theme-main) !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.learning-page .skill-progress-bar-wrap > .skill-progress-percent {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: var(--taskbar-theme-main) !important;
+}
+
+.learning-page .skill-progress-bar-wrap .progress-bar {
+  background: #e5e7eb !important;
+  background-image: none !important;
+}
+
+.learning-page .skill-progress-bar-wrap .progress-bar > *:not(.skill-progress-percent) {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000) 0%,
+      var(--taskbar-theme-main) 52%,
+      var(--taskbar-theme-main) 100%
+    ) !important;
+}
+
+.learning-page .goal-skill {
+  background: #fff1f2 !important;
+  background-image: none !important;
+  color: var(--taskbar-theme-main) !important;
+}
+
+.learning-page .skill-progress-row:hover {
+  background: color-mix(in srgb, var(--taskbar-theme-main) 4.5%, transparent) !important;
+}
+
+.learning-page .skill-progress-info span {
+  color: #475569 !important;
+}
+
+.learning-page svg {
+  /* color intentionally not specified */
+  background: transparent !important;
+}
+
+.learning-page h1,
+.timetable-page h1,
+.goals-page h1,
+.assessments-page h1 {
+  background:
+    linear-gradient(
+      90deg,
+      var(--taskbar-theme-main) 0%,
+      var(--taskbar-theme-main) 42%,
+      #8b0000 72%,
+      #000000 100%
+    ) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow:
+    0 3px 12px color-mix(in srgb, var(--taskbar-theme-main) 18%, transparent) !important;
+}
+
+.learning-page .skill-progress-percent,
+.learning-page .skill-progress-bar-wrap > .skill-progress-percent {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: var(--taskbar-theme-main) !important;
+  -webkit-text-fill-color: var(--taskbar-theme-main) !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.learning-page .skill-progress-bar-wrap .progress-bar {
+  background: #e5e7eb !important;
+  background-image: none !important;
+}
+
+.learning-page .skill-progress-bar-wrap .progress-bar > *:not(.skill-progress-percent),
+.learning-page .progress-fill,
+.learning-page .goal-progress-fill {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--taskbar-theme-main) 65%, #000) 0%,
+      var(--taskbar-theme-main) 52%,
+      var(--taskbar-theme-main) 100%
+    ) !important;
+}
+
+.learning-page .skill-progress-info,
+.learning-page .skill-progress-info span,
+.learning-page .learning-progress-header span {
+  color: #334155 !important;
+}
+
+.profile-video-page .add-topic-button,
+.profile-video-page .save-topic-button {
+  box-shadow:
+    0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.learning-stat,
+.learning-overview,
+.learning-section,
+.add-topic-card,
+.goal-form-card,
+.goal-card,
+.goal-stat-card,
+.module-form-card,
+.assessment-item {
+  background: rgba(255, 255, 255, 0.055) !important;
+  background-image: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+.learning-stat:hover,
+.learning-overview:hover,
+.learning-section:hover,
+.add-topic-card:hover,
+.goal-form-card:hover,
+.goal-card:hover,
+.goal-stat-card:hover,
+.module-form-card:hover,
+.assessment-item:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  background-image: none !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+.main-content .learning-stat,
+.main-content .learning-overview,
+.main-content .learning-section,
+.main-content .add-topic-card,
+.main-content .goal-form-card,
+.main-content .goal-card,
+.main-content .goal-stat-card,
+.main-content .module-form-card,
+.main-content .assessment-item {
+  background: var(--tb-glass) !important;
+  background-image: none !important;
+  border: 1px solid var(--tb-line) !important;
+  color: var(--tb-text) !important;
+  box-shadow: var(--tb-shadow) !important;
+  backdrop-filter: blur(18px) saturate(125%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(125%) !important;
+}
+
+.main-content .learning-stat:hover,
+.main-content .learning-overview:hover,
+.main-content .learning-section:hover,
+.main-content .add-topic-card:hover,
+.main-content .goal-card:hover,
+.main-content .goal-stat-card:hover,
+.main-content .assessment-item:hover {
+  background: var(--tb-glass-hover) !important;
+  background-image: none !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 28%, transparent) !important;
+}
+
+.learning-stat::before,
+.goal-card::before,
+.goal-stat-card::before {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  background: none !important;
+}
+
+.learning-stat::after,
+.goal-stat-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+.main-content .topic-row,
+.main-content .assessment-item {
+  background: rgba(255, 255, 255, .045) !important;
+  background-image: none !important;
+  border-color: var(--tb-line-soft) !important;
+  color: var(--tb-text) !important;
+}
+
+.main-content .topic-row:hover,
+.main-content .assessment-item:hover {
+  background: rgba(255, 255, 255, .075) !important;
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 30%, transparent) !important;
+}
+
+.main-content .empty-state,
+.main-content .empty-topics {
+  background: rgba(255, 255, 255, .045) !important;
+  background-image: none !important;
+  border: 1px solid var(--tb-line-soft) !important;
+  color: var(--tb-muted) !important;
+  border-radius: 16px !important;
+}
+
+.main-content .empty-state h3,
+.main-content .empty-state p,
+.main-content .empty-topics {
+  color: var(--tb-muted) !important;
+}
+
+.main-content .add-topic-button svg,
+.main-content .save-topic-button svg {
+  color: #fff !important;
+  stroke: currentColor;
+}
+
+.main-content .skill-search-input,
+.main-content .topic-header select,
+.main-content .topic-row select,
+.main-content .goal-details select {
+  background: rgba(0, 0, 0, .48) !important;
+  background-image: none !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, .15) !important;
+  box-shadow: none !important;
+}
+
+.main-content .add-topic-button,
+.main-content .save-topic-button {
+  background: linear-gradient(135deg, var(--tb-red), var(--taskbar-theme-main)) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, .12) !important;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--taskbar-theme-main) 22%, transparent) !important;
+}
+
+.learning-page .topic-header select,
+.learning-page .topic-row select,
+.learning-page .skill-progress-percent {
+  background: rgba(0, 0, 0, .52) !important;
+  color: #fff !important;
+  border-color: var(--tb-line) !important;
+}
+
+.learning-page .skill-progress-percent {
+  border: 1px solid var(--tb-line) !important;
+}
+
+.main-content .goal-progress {
+  background: rgba(255, 255, 255, .10) !important;
+  border-color: rgba(255,255,255,.10) !important;
+}
+
+.main-content .goal-progress-fill {
+  background: linear-gradient(90deg, var(--tb-red), var(--tb-red-bright)) !important;
+}
+
+.main-content .assessment-item,
+.main-content .topic-row {
+  animation: none !important;
+}
+
+.career-simple-page .empty-state {
+  background: rgba(255,255,255,.045) !important;
+  border-color: var(--tb-line-soft) !important;
+}
+
+.main-content .learning-stat,
+.main-content .learning-overview,
+.main-content .learning-section,
+.main-content .add-topic-card,
+.main-content .goal-form-card,
+.main-content .goal-card,
+.main-content .module-form-card,
+.main-content .assessment-item {
+  background: rgba(18,18,22,.72) !important;
+  border: 1px solid rgba(255,255,255,.105) !important;
+  color: #f7f7f8 !important;
+  box-shadow: 0 14px 40px rgba(0,0,0,.28) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+}
+
+.main-content .learning-stat:hover,
+.main-content .goal-card:hover {
+  border-color: color-mix(in srgb, var(--taskbar-theme-main) 28%, transparent) !important;
+  box-shadow: 0 18px 48px rgba(0,0,0,.34) !important;
+}
+
+.main-content .learning-stat::before,
+.main-content .goal-card::before {
+  display: none !important;
+}
+
+.main-content .topic-header select,
+.main-content .topic-row select,
+.main-content .skill-search-input {
+  background: rgba(0,0,0,.48) !important;
+  color: #f7f7f8 !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025) !important;
+}
+
+.main-content .add-topic-button,
+.main-content .save-topic-button {
+  background: linear-gradient(135deg,var(--taskbar-theme-main),var(--taskbar-theme-main)) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--taskbar-theme-main) 18%, transparent) !important;
+}
+
+.main-content .add-topic-button:hover,
+.main-content .save-topic-button:hover {
+  background: linear-gradient(135deg,var(--taskbar-theme-main),var(--taskbar-theme-main)) !important;
+  box-shadow: 0 11px 28px color-mix(in srgb, var(--taskbar-theme-main) 24%, transparent) !important;
+}
+
+.main-content .goal-progress {
+  background: rgba(255,255,255,.10) !important;
+}
+
+.main-content .goal-progress-fill {
+  background: linear-gradient(90deg,var(--taskbar-theme-main),var(--taskbar-theme-main)) !important;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--taskbar-theme-main) 20%, transparent) !important;
+}
+
+.main-content .topic-row,
+.main-content .assessment-item,
+.main-content .skill-progress-row {
+  color: #f7f7f8;
+  border-color: rgba(255,255,255,.075) !important;
+}
+
+.main-content .topic-row:hover,
+.main-content .skill-progress-row:hover {
+  background: color-mix(in srgb, var(--taskbar-theme-main) 4.5%, transparent) !important;
+}
+
+.main-content .topic-row strong,
+.main-content .assessment-item strong {
+  color: #f7f7f8 !important;
+}
+
+.main-content .topic-row span,
+.main-content .assessment-item span,
+.main-content .skill-progress-info span {
+  color: #a1a1aa !important;
+}
+
+.main-content .learning-page h1,
+.main-content .timetable-page h1,
+.main-content .goals-page h1,
+.main-content .assessments-page h1 {
+  background: var(--taskbar-theme-gradient-horizontal) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: var(--taskbar-theme-main) !important;
+  text-shadow: none !important;
+}
+
+.main-content .learning-stat svg,
+.main-content .goal-stat-card svg,
+.main-content .goal-details svg {
+  color: var(--taskbar-theme-main) !important;
+  stroke: currentColor;
+}
+
+.main-content .add-topic-button,
+.main-content .save-topic-button {
+  background: var(--taskbar-theme-gradient) !important;
+  background-image: var(--taskbar-theme-gradient) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 24px var(--taskbar-theme-shadow) !important;
+}
+
+.main-content .add-topic-button:hover,
+.main-content .save-topic-button:hover {
+  background: var(--taskbar-theme-gradient) !important;
+  background-image: var(--taskbar-theme-gradient) !important;
+}
+
+.main-content .add-topic-button svg,
+.main-content .save-topic-button svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+
+.main-content .goal-progress-fill,
+.main-content .skill-progress-bar-wrap .progress-bar > * {
+  background: var(--taskbar-theme-gradient-horizontal) !important;
+  background-image: var(--taskbar-theme-gradient-horizontal) !important;
+  box-shadow: 0 0 14px var(--taskbar-theme-shadow) !important;
+}
+
+.main-content .skill-progress-percent {
+  background: transparent !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.main-content .learning-stat,
+.main-content .learning-overview,
+.main-content .learning-section,
+.main-content .add-topic-card,
+.main-content .goal-form-card,
+.main-content .goal-card,
+.main-content .goal-stat-card,
+.main-content .module-form-card,
+.main-content .assessment-item {
+  color: #ffffff !important;
+}
+
+@media (max-width: 700px) {
+  .main-content .add-topic-button,
+.main-content .save-topic-button {
+    background: var(--taskbar-theme-gradient) !important;
+  }
+}
+
+.main-content .learning-page h1,
+.main-content .timetable-page h1,
+.main-content .goals-page h1,
+.main-content .assessments-page h1 {
+  background: var(--taskbar-theme-gradient-horizontal) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: var(--taskbar-theme-main) !important;
+  text-shadow: none !important;
+}
+
+.main-content .learning-stat svg {
+  color: var(--taskbar-theme-main) !important;
+}
+
+.main-content .add-topic-button,
+.main-content .save-topic-button {
+  color: #fff !important;
+  background: var(--taskbar-theme-gradient) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 45%,
+    transparent
+  ) !important;
+  box-shadow: 0 7px 17px var(--taskbar-theme-shadow) !important;
+}
+
+.main-content .add-topic-button:hover,
+.main-content .save-topic-button:hover {
+  background: var(--taskbar-theme-gradient) !important;
+  box-shadow: 0 10px 23px var(--taskbar-theme-shadow) !important;
+}
+
+.main-content .topic-header select:focus,
+.main-content .topic-row select:focus {
+  border-color: var(--taskbar-theme-main) !important;
+  box-shadow: 0 0 0 4px color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 10%,
+    transparent
+  ) !important;
+  outline: none;
+}
+
+.main-content .add-topic-button,
+.main-content .save-topic-button {
+  min-height: 40px;
+  padding: 9px 14px !important;
+  gap: 8px;
+  color: #ffffff !important;
+}
+
+@media (max-width: 640px) {
+  .main-content .add-topic-button,
+.main-content .save-topic-button {
+    padding: 9px 12px !important;
+    gap: 7px;
+  }
+}
+
+.learning-page,
+.goals-page,
+.module-page {
+  max-width: 100%;
+}
+
+.learning-stats {
+  min-width: 0;
+}
+
+.learning-stats > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+
+  .learning-stats {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 12px !important;
+  }
+
+  .learning-stat,
+.learning-overview,
+.learning-section,
+.add-topic-card,
+.goal-form-card,
+.goal-card,
+.module-form-card,
+.assessment-item {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .main-content .add-topic-button,
+.main-content .save-topic-button {
+    min-height: 40px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+
+  .main-content > .learning-page,
+.main-content > .goals-page,
+.main-content > .module-page {
+    width: 100%;
+  }
+}
+
+.taskbar-modal .goal-form-card,
+.taskbar-modal .module-form-card,
+.taskbar-modal .learning-section,
+.taskbar-modal .add-topic-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+}
+
+.grid-form {
+  width: 100%;
+  min-width: 0;
+}
+
+.grid-form > *,
+.goal-form > *,
+.add-topic-card form > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 700px) {
+
+  .grid-form {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .grid-form .full-width {
+    grid-column: auto !important;
+  }
+
+  .goal-details,
+.add-topic-card form,
+.module-form-card form {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .goal-details select,
+.goal-details .full-width {
+    grid-column: auto !important;
+  }
+
+  .learning-form-modal,
+.goal-form-modal,
+.timetable-form-modal,
+.assessments-form-modal,
+.study-sessions-form-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .taskbar-modal .goal-form-card,
+.taskbar-modal .module-form-card,
+.taskbar-modal .add-topic-card,
+.taskbar-modal .learning-section {
+    padding: 15px !important;
+    border-radius: 14px !important;
+  }
+
+  .goal-form-header,
+.add-topic-header {
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .goal-form-header h2,
+.add-topic-header h2 {
+    font-size: 20px !important;
+    overflow-wrap: anywhere;
+  }
+
+  .goal-form-header p,
+.add-topic-header p {
+    font-size: 12px !important;
+  }
+
+  .goal-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 8px !important;
+  }
+
+  .goal-actions > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 420px) {
+
+  .taskbar-modal .goal-form-card,
+.taskbar-modal .module-form-card,
+.taskbar-modal .add-topic-card,
+.taskbar-modal .learning-section {
+    padding: 12px !important;
+  }
+}
+
+/* =========================================================
+   FINAL MODAL CLOSE BUTTON FIX
+   White X must ALWAYS be visible — no hover required.
+   ========================================================= */
+
+.goal-form-modal .close-button,
+.learning-form-modal .close-button,
+.timetable-form-modal .close-button,
+.assessments-form-modal .close-button,
+.study-sessions-form-modal .close-button,
+.taskbar-modal .taskbar-modal-close {
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.24) !important;
+  cursor: pointer !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease !important;
+}
+
+.goal-form-modal .close-button svg,
+.learning-form-modal .close-button svg,
+.timetable-form-modal .close-button svg,
+.assessments-form-modal .close-button svg,
+.study-sessions-form-modal .close-button svg,
+.taskbar-modal .taskbar-modal-close svg {
+  width: 21px !important;
+  height: 21px !important;
+  display: block !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+  fill: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+}
+
+.goal-form-modal .close-button:hover,
+.learning-form-modal .close-button:hover,
+.timetable-form-modal .close-button:hover,
+.assessments-form-modal .close-button:hover,
+.study-sessions-form-modal .close-button:hover,
+.taskbar-modal .taskbar-modal-close:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+  transform: scale(1.04) !important;
+}
+
+.goal-form-modal .close-button:hover svg,
+.learning-form-modal .close-button:hover svg,
+.timetable-form-modal .close-button:hover svg,
+.assessments-form-modal .close-button:hover svg,
+.study-sessions-form-modal .close-button:hover svg,
+.taskbar-modal .taskbar-modal-close:hover svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.goal-form-modal .close-button:focus-visible,
+.learning-form-modal .close-button:focus-visible,
+.timetable-form-modal .close-button:focus-visible,
+.assessments-form-modal .close-button:focus-visible,
+.study-sessions-form-modal .close-button:focus-visible,
+.taskbar-modal .taskbar-modal-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.75) !important;
+  outline-offset: 3px !important;
+}
+
+@media (max-width: 700px) {
+  .goal-form-modal .close-button,
+  .learning-form-modal .close-button,
+  .timetable-form-modal .close-button,
+  .assessments-form-modal .close-button,
+  .study-sessions-form-modal .close-button,
+  .taskbar-modal .taskbar-modal-close {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+    min-height: 42px !important;
+    border-radius: 12px !important;
+  }
+
+  .goal-form-modal .close-button svg,
+  .learning-form-modal .close-button svg,
+  .timetable-form-modal .close-button svg,
+  .assessments-form-modal .close-button svg,
+  .study-sessions-form-modal .close-button svg,
+  .taskbar-modal .taskbar-modal-close svg {
+    width: 19px !important;
+    height: 19px !important;
+  }
+}
+
+/* =========================================================
+   FINAL STUDY HEADER + MODAL TEXT FIX
+   ========================================================= */
+
+/* Modal headers must remain WHITE on the dark glass cards. */
+.goal-form-modal .goal-form-card .goal-form-header h2,
+.learning-form-modal .add-topic-card .add-topic-header h2,
+.timetable-form-modal .module-form-card .add-topic-header h2,
+.assessments-form-modal .module-form-card .add-topic-header h2,
+.study-sessions-form-modal .module-form-card .add-topic-header h2,
+.taskbar-modal .goal-form-header h2,
+.taskbar-modal .add-topic-header h2 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: none !important;
+  background-image: none !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Modal header descriptions must also stay readable. */
+.goal-form-modal .goal-form-card .goal-form-header p,
+.learning-form-modal .add-topic-card .add-topic-header p,
+.timetable-form-modal .module-form-card .add-topic-header p,
+.assessments-form-modal .module-form-card .add-topic-header p,
+.study-sessions-form-modal .module-form-card .add-topic-header p,
+.taskbar-modal .goal-form-header p,
+.taskbar-modal .add-topic-header p {
+  color: rgba(255, 255, 255, 0.72) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.72) !important;
+  background: none !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Modal form labels stay white. */
+.goal-form-modal .goal-form-card label,
+.learning-form-modal .add-topic-card label,
+.timetable-form-modal .module-form-card label,
+.assessments-form-modal .module-form-card label,
+.study-sessions-form-modal .module-form-card label {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* Keep page headers readable as well. */
+.main-content .learning-page .page-header h1,
+.main-content .goals-page .page-header h1,
+.main-content .timetable-page .page-header h1,
+.main-content .assessments-page .page-header h1,
+.main-content .study-sessions-page .page-header h1 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: none !important;
+  background-image: none !important;
+  text-shadow: none !important;
+}
+
+/* Never allow the old light-theme card rule to darken modal text. */
+.taskbar-modal .goal-form-card,
+.taskbar-modal .module-form-card,
+.taskbar-modal .add-topic-card {
+  color: #ffffff !important;
+}
+
+.taskbar-modal .goal-form-card h1,
+.taskbar-modal .goal-form-card h2,
+.taskbar-modal .goal-form-card h3,
+.taskbar-modal .module-form-card h1,
+.taskbar-modal .module-form-card h2,
+.taskbar-modal .module-form-card h3,
+.taskbar-modal .add-topic-card h1,
+.taskbar-modal .add-topic-card h2,
+.taskbar-modal .add-topic-card h3 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* =========================================================
+   TASKBAR — LEARNING MOBILE REPAIR
+   Prevents topic text from being squeezed into one character
+   per line and keeps the Learning page clean on phones.
+   ========================================================= */
+
+@media (max-width: 700px) {
+  .learning-page,
+  .learning-page .learning-overview,
+  .learning-page .learning-section,
+  .learning-page .learning-stats,
+  .learning-page .skill-progress-section {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .learning-page .learning-overview,
+  .learning-page .learning-section {
+    padding: 16px !important;
+    border-radius: 18px !important;
+    background: rgba(10, 12, 18, 0.78) !important;
+    border: 1px solid rgba(255,255,255,.10) !important;
+    box-shadow: 0 12px 30px rgba(0,0,0,.20) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .learning-page .learning-stats {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .learning-page .learning-stat {
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 14px !important;
+    border-radius: 16px !important;
+    background: rgba(12,15,22,.82) !important;
+    border: 1px solid rgba(255,255,255,.09) !important;
+  }
+
+  .learning-page .learning-stat strong {
+    font-size: 24px !important;
+  }
+
+  .learning-page .learning-progress-header {
+    align-items: flex-start !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+
+  .learning-page .learning-progress-header h2 {
+    font-size: 30px !important;
+  }
+
+  .learning-page .topic-header {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 14px !important;
+  }
+
+  .learning-page .topic-header > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .learning-page .skill-search-input,
+  .learning-page .topic-header select {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    height: 48px !important;
+    padding: 0 14px !important;
+    border-radius: 13px !important;
+    background: rgba(5,7,11,.78) !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
+    color: #fff !important;
+  }
+
+  .learning-page .topic-list {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .learning-page .topic-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 14px 0 !important;
+    box-sizing: border-box !important;
+    border-bottom: 1px solid rgba(255,255,255,.09) !important;
+  }
+
+  .learning-page .topic-information {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 0 auto !important;
+  }
+
+  .learning-page .topic-information strong {
+    display: block !important;
+    width: 100% !important;
+    color: #fff !important;
+    font-size: 15px !important;
+    line-height: 1.35 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  .learning-page .topic-information span {
+    display: block !important;
+    width: 100% !important;
+    margin-top: 4px !important;
+    color: rgba(255,255,255,.60) !important;
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .learning-page .topic-actions {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 44px 44px !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .learning-page .topic-actions select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    box-sizing: border-box !important;
+    padding: 0 10px !important;
+    border-radius: 12px !important;
+    background: rgba(5,7,11,.86) !important;
+    color: #fff !important;
+    border: 1px solid rgba(255,255,255,.12) !important;
+  }
+
+  .learning-page .topic-actions .edit-button,
+  .learning-page .topic-actions .delete-button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border-radius: 12px !important;
+  }
+
+  .learning-page .skill-progress-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 9px !important;
+    padding: 11px 0 !important;
+  }
+
+  .learning-page .skill-progress-info,
+  .learning-page .skill-progress-bar-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .learning-page .skill-progress-bar-wrap {
+    max-width: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .learning-page .learning-stats {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+
+  .learning-page .learning-stat {
+    padding: 12px !important;
+  }
+
+  .learning-page .learning-stat strong {
+    font-size: 21px !important;
+  }
+
+  .learning-page .learning-stat span {
+    font-size: 11px !important;
+  }
+
+  .learning-page .topic-actions {
+    grid-template-columns: minmax(0, 1fr) 40px 40px !important;
+    gap: 7px !important;
+  }
+
+  .learning-page .topic-actions .edit-button,
+  .learning-page .topic-actions .delete-button {
+    width: 40px !important;
+    min-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+}
+/* =========================================================
+   TASKBAR DARK THEME — STUDY CARD HEADINGS
+   ========================================================= */
+
+.main-content .learning-page .learning-stat h1,
+.main-content .learning-page .learning-stat h2,
+.main-content .learning-page .learning-stat h3,
+.main-content .learning-page .learning-stat strong,
+
+.main-content .learning-page .learning-overview h1,
+.main-content .learning-page .learning-overview h2,
+.main-content .learning-page .learning-overview h3,
+
+.main-content .learning-page .learning-section h1,
+.main-content .learning-page .learning-section h2,
+.main-content .learning-page .learning-section h3,
+
+.main-content .learning-page .topic-header h1,
+.main-content .learning-page .topic-header h2,
+.main-content .learning-page .topic-header h3,
+
+.main-content .goals-page .goal-card h1,
+.main-content .goals-page .goal-card h2,
+.main-content .goals-page .goal-card h3,
+
+.main-content .goals-page .goal-stat-card h1,
+.main-content .goals-page .goal-stat-card h2,
+.main-content .goals-page .goal-stat-card h3 {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}

@@ -22,10 +22,6 @@ export const dashboardData = {
     consumedMl: 0,
   },
 
-  diet: [],
-
-  screenTime: [],
-
   activities: [],
 
   quickTasks: [],

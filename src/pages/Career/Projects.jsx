@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Modal from "../../components/common/Modal";
 import {
   ExternalLink,
   GitBranch,
@@ -394,7 +395,13 @@ export default function Projects() {
       </div>
 
       {/* ADD / EDIT FORM */}
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="projects-form-modal"
+      >
+
         <section className="projects-card projects-form-card">
           <div className="projects-form-header">
             <div>
@@ -557,7 +564,7 @@ export default function Projects() {
             </button>
           </div>
         </section>
-      )}
+      </Modal>
 
       {/* PROJECT LIST */}
       <section className="projects-card">

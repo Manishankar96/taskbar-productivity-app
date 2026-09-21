@@ -1,0 +1,201 @@
+/* =========================================================
+   TASKBAR THEME SYSTEM
+   Single source of truth for theme colors.
+   Profile is intentionally excluded.
+========================================================= */
+
+:root {
+  --taskbar-theme-start: #8b0000;
+  --taskbar-theme-middle: #3d0000;
+  --taskbar-theme-end: #050505;
+
+  --taskbar-theme-primary: #8b0000;
+  --taskbar-theme-secondary: #050505;
+
+  --taskbar-theme-main: var(--taskbar-theme-primary);
+
+  --taskbar-theme-gradient:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-start) 0%,
+      var(--taskbar-theme-middle) 45%,
+      var(--taskbar-theme-end) 100%
+    );
+
+  --taskbar-theme-gradient-horizontal:
+    linear-gradient(
+      90deg,
+      var(--taskbar-theme-primary) 0%,
+      var(--taskbar-theme-secondary) 100%
+    );
+
+  --taskbar-theme-gradient-vertical:
+    linear-gradient(
+      180deg,
+      var(--taskbar-theme-primary) 0%,
+      var(--taskbar-theme-secondary) 100%
+    );
+
+  --taskbar-theme-shadow:
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-primary) 35%,
+      transparent
+    );
+
+  --taskbar-default-background:
+    var(--taskbar-theme-gradient);
+
+  --taskbar-custom-background: none;
+
+  --taskbar-theme-primary-soft:
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-primary) 25%,
+      transparent
+    );
+
+  --taskbar-theme-primary-border:
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-primary) 55%,
+      transparent
+    );
+}
+
+/* =========================================================
+   THEME PALETTE
+========================================================= */
+
+html[data-taskbar-theme="default"] {
+  --taskbar-theme-start: #8b0000;
+  --taskbar-theme-middle: #3d0000;
+  --taskbar-theme-end: #050505;
+  --taskbar-theme-primary: #8b0000;
+  --taskbar-theme-secondary: #050505;
+}
+
+html[data-taskbar-theme="blue-cyan"] {
+  --taskbar-theme-start: #003cff;
+  --taskbar-theme-middle: #0066ff;
+  --taskbar-theme-end: #00e5ff;
+  --taskbar-theme-primary: #003cff;
+  --taskbar-theme-secondary: #00e5ff;
+}
+
+html[data-taskbar-theme="purple-pink"] {
+  --taskbar-theme-start: #4b00ff;
+  --taskbar-theme-middle: #8a00ff;
+  --taskbar-theme-end: #ff1493;
+  --taskbar-theme-primary: #4b00ff;
+  --taskbar-theme-secondary: #ff1493;
+}
+
+html[data-taskbar-theme="green-teal"] {
+  --taskbar-theme-start: #006b3c;
+  --taskbar-theme-middle: #00a86b;
+  --taskbar-theme-end: #00c9a7;
+  --taskbar-theme-primary: #006b3c;
+  --taskbar-theme-secondary: #00c9a7;
+}
+
+html[data-taskbar-theme="orange-gold"] {
+  --taskbar-theme-start: #ff4500;
+  --taskbar-theme-middle: #ff6600;
+  --taskbar-theme-end: #ffd700;
+  --taskbar-theme-primary: #ff4500;
+  --taskbar-theme-secondary: #ffd700;
+}
+
+html[data-taskbar-theme="red-violet"] {
+  --taskbar-theme-start: #8b0000;
+  --taskbar-theme-middle: #ff0000;
+  --taskbar-theme-end: #8a2be2;
+  --taskbar-theme-primary: #8b0000;
+  --taskbar-theme-secondary: #8a2be2;
+}
+
+html[data-taskbar-theme="cyan-purple"] {
+  --taskbar-theme-start: #00bfff;
+  --taskbar-theme-middle: #00ffff;
+  --taskbar-theme-end: #8000ff;
+  --taskbar-theme-primary: #00bfff;
+  --taskbar-theme-secondary: #8000ff;
+}
+
+/* Rebuild derived variables after the selected palette is applied. */
+html,
+html[data-taskbar-theme] {
+  --taskbar-theme-main: var(--taskbar-theme-primary);
+
+  --taskbar-theme-gradient:
+    linear-gradient(
+      135deg,
+      var(--taskbar-theme-start) 0%,
+      var(--taskbar-theme-middle) 45%,
+      var(--taskbar-theme-end) 100%
+    );
+
+  --taskbar-theme-gradient-horizontal:
+    linear-gradient(
+      90deg,
+      var(--taskbar-theme-primary) 0%,
+      var(--taskbar-theme-secondary) 100%
+    );
+
+  --taskbar-theme-gradient-vertical:
+    linear-gradient(
+      180deg,
+      var(--taskbar-theme-primary) 0%,
+      var(--taskbar-theme-secondary) 100%
+    );
+
+  --taskbar-theme-shadow:
+    color-mix(
+      in srgb,
+      var(--taskbar-theme-primary) 35%,
+      transparent
+    );
+
+  --taskbar-default-background:
+    var(--taskbar-theme-gradient);
+}
+
+/* =========================================================
+   GENERIC THEME HELPERS
+========================================================= */
+
+.taskbar-theme-primary {
+  color: var(--taskbar-theme-primary);
+}
+
+.taskbar-theme-primary-bg {
+  background: var(--taskbar-theme-primary);
+}
+
+.taskbar-theme-primary-border {
+  border-color: var(--taskbar-theme-primary);
+}
+
+.taskbar-theme-icon {
+  color: var(--taskbar-theme-primary);
+}
+
+.taskbar-theme-button {
+  background: var(--taskbar-theme-primary);
+  border-color: var(--taskbar-theme-primary);
+}
+
+.taskbar-theme-focus:focus,
+.taskbar-theme-focus:focus-visible {
+  outline: 2px solid var(--taskbar-theme-primary);
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   PROFILE EXCLUSION
+========================================================= */
+
+.profile-page {
+  background: transparent;
+}

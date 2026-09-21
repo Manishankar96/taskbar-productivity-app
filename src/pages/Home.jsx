@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+import TodayPlanner from "../components/planner/TodayPlanner";
+import FocusMode from "../components/planner/FocusMode";
+import CalendarView from "../components/calendar/CalendarView";
+
 import {
   BookOpen,
   CalendarDays,
@@ -8,15 +12,14 @@ import {
   Flame,
   Target,
   Droplets,
-  Smartphone,
   CheckSquare,
   ClipboardCheck,
-  UserCircle,
   Activity as ActivityIcon,
   BarChart3,
   Lightbulb,
   AlertCircle,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 
 import {
@@ -51,7 +54,6 @@ import {
 const TOPICS_COLLECTION = "topics";
 const GOALS_COLLECTION = "goals";
 const WATER_COLLECTION = "water";
-const SCREEN_TIME_COLLECTION = "screenTime";
 const ACTIVITIES_COLLECTION = "activities";
 const ASSESSMENTS_COLLECTION = "assessments";
 const TIMETABLE_COLLECTION = "timetable";
@@ -63,6 +65,7 @@ const JOB_PREPARATION_COLLECTION = "jobPreparation";
 const APPLICATIONS_COLLECTION = "applications";
 const SAVED_JOBS_COLLECTION = "savedJobs";
 const INTERVIEWS_COLLECTION = "interviews";
+const REMINDERS_COLLECTION = "reminders";
 
 
 function Home() {
@@ -73,12 +76,13 @@ function Home() {
   const [topics, setTopics] = useState([]);
   const [goals, setGoals] = useState([]);
   const [water, setWater] = useState([]);
-  const [screenTime, setScreenTime] = useState([]);
   const [studySessions, setStudySessions] = useState([]);
   const [activities, setActivities] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [timetable, setTimetable] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [reminders, setReminders] = useState([]);
+  const [globalSearch, setGlobalSearch] = useState("");
 
 
   /* =====================================================
@@ -105,7 +109,6 @@ function Home() {
           topicsData,
           goalsData,
           waterData,
-          screenTimeData,
           studySessionsData,
           activitiesData,
           assessmentsData,
@@ -115,7 +118,6 @@ function Home() {
           getItemsFromFirestore(TOPICS_COLLECTION),
           getItemsFromFirestore(GOALS_COLLECTION),
           getItemsFromFirestore(WATER_COLLECTION),
-          getItemsFromFirestore(SCREEN_TIME_COLLECTION),
           getItemsFromFirestore(STUDY_SESSIONS_COLLECTION),
           getItemsFromFirestore(ACTIVITIES_COLLECTION),
           getItemsFromFirestore(ASSESSMENTS_COLLECTION),
@@ -138,12 +140,6 @@ function Home() {
         setWater(
           Array.isArray(waterData)
             ? waterData
-            : []
-        );
-
-        setScreenTime(
-          Array.isArray(screenTimeData)
-            ? screenTimeData
             : []
         );
 
@@ -192,7 +188,6 @@ function Home() {
       [TOPICS_COLLECTION, setTopics],
       [GOALS_COLLECTION, setGoals],
       [WATER_COLLECTION, setWater],
-      [SCREEN_TIME_COLLECTION, setScreenTime],
       [STUDY_SESSIONS_COLLECTION, setStudySessions],
       [ACTIVITIES_COLLECTION, setActivities],
       [ASSESSMENTS_COLLECTION, setAssessments],
@@ -215,6 +210,39 @@ function Home() {
           unsubscribe();
         }
       });
+    };
+  }, []);
+
+
+  /* =====================================================
+     LOAD REMINDERS FOR DAILY PLANNER
+  ===================================================== */
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadReminders() {
+      try {
+        const data = await getItemsFromFirestore(REMINDERS_COLLECTION);
+        if (active) {
+          setReminders(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Failed to load reminders for Daily Planner:", error);
+        if (active) setReminders([]);
+      }
+    }
+
+    loadReminders();
+
+    const refresh = () => loadReminders();
+    window.addEventListener("taskbarRemindersUpdated", refresh);
+    window.addEventListener("storage", refresh);
+
+    return () => {
+      active = false;
+      window.removeEventListener("taskbarRemindersUpdated", refresh);
+      window.removeEventListener("storage", refresh);
     };
   }, []);
 
@@ -416,14 +444,6 @@ function Home() {
     });
 
 
-    // Screen time
-    screenTime.forEach((record) => {
-      if (Number(record.minutes) > 0) {
-        addDate(record.date);
-      }
-    });
-
-
     // Study sessions
     studySessions.forEach((session) => {
       const minutes =
@@ -595,7 +615,6 @@ function Home() {
     water,
     activities,
     assessments,
-    screenTime,
     studySessions,
     today,
   ]);
@@ -634,10 +653,6 @@ function Home() {
      IMPORTANT:
      Study Time comes ONLY from Study Sessions.
 
-     Screen Time is completely separate.
-
-     Learning/Coding screen-time records
-     are NOT counted here.
   ===================================================== */
 
   const studyMinutesToday = useMemo(() => {
@@ -675,29 +690,6 @@ function Home() {
     studySessions,
     today,
   ]);
-
-
-  /* =====================================================
-     SCREEN TIME TODAY
-
-     Screen Time includes ALL screen-time categories.
-  ===================================================== */
-
-  const screenTimeMinutesToday =
-    useMemo(
-      () =>
-        sumBy(
-          screenTime.filter(
-            (record) =>
-              record.date === today
-          ),
-          "minutes"
-        ),
-      [
-        screenTime,
-        today,
-      ]
-    );
 
 
   /* =====================================================
@@ -1002,20 +994,6 @@ function Home() {
                 key
               ),
 
-            screenTimeHrs:
-              Math.round(
-                (
-                  sumBy(
-                    screenTime.filter(
-                      (record) =>
-                        record.date ===
-                        key
-                    ),
-                    "minutes"
-                  ) / 60
-                ) * 10
-              ) / 10,
-
             studyTimeHrs:
               Math.round(
                 (
@@ -1041,7 +1019,6 @@ function Home() {
       );
 
     }, [
-      screenTime,
       studySessions,
       activities,
     ]);
@@ -1486,6 +1463,84 @@ function Home() {
   }, [centralTasks, today]);
 
   /* =====================================================
+     GLOBAL SEARCH
+  ===================================================== */
+
+  const globalSearchResults = useMemo(() => {
+    const query = globalSearch.trim().toLowerCase();
+
+    if (!query) {
+      return [];
+    }
+
+    const sources = [
+      ...topics.map((item) => ({
+        id: `topic-${item.id}`,
+        title: item.name || item.title || "Learning Topic",
+        source: "Learning",
+        details: item.status || "",
+        path: "/learning",
+      })),
+      ...goals.map((item) => ({
+        id: `goal-${item.id}`,
+        title: item.title || item.name || "Goal",
+        source: "Goals",
+        details: item.status || "",
+        path: "/goals",
+      })),
+      ...assessments.map((item) => ({
+        id: `assessment-${item.id}`,
+        title: item.title || "Assessment",
+        source: "Assessments",
+        details: item.date || "",
+        path: "/assessments",
+      })),
+      ...timetable.map((item) => ({
+        id: `timetable-${item.id}`,
+        title: item.activity || item.title || "Scheduled activity",
+        source: "Timetable",
+        details: `${item.day || ""} ${item.startTime || ""}`.trim(),
+        path: "/timetable",
+      })),
+      ...reminders.map((item) => ({
+        id: `reminder-${item.id}`,
+        title: item.title || item.name || item.reminder || "Reminder",
+        source: "Reminders",
+        details: item.date || item.time || "",
+        path: "/reminders",
+      })),
+      ...centralTasks.map((item) => ({
+        id: `central-${item.id}`,
+        title: item.title || "Task",
+        source: item.source || "To-Do",
+        details: item.date || "",
+        path: "/todo-list",
+      })),
+    ];
+
+    const seen = new Set();
+
+    return sources
+      .filter((item) => {
+        const haystack = `${item.title} ${item.source} ${item.details}`.toLowerCase();
+        if (!haystack.includes(query)) return false;
+
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      })
+      .slice(0, 12);
+  }, [
+    globalSearch,
+    topics,
+    goals,
+    assessments,
+    timetable,
+    reminders,
+    centralTasks,
+  ]);
+
+  /* =====================================================
      LOADING
   ===================================================== */
 
@@ -1501,11 +1556,60 @@ function Home() {
 
 
   /* =====================================================
+     FOCUS MODE SESSION SAVE
+  ===================================================== */
+
+  async function handleFocusSessionComplete({
+    task,
+    minutes,
+    duration,
+    elapsedSeconds,
+    completed,
+  }) {
+    const sessionId = `focus-${Date.now()}`;
+
+    await saveItemToFirestore(
+      STUDY_SESSIONS_COLLECTION,
+      sessionId,
+      {
+        id: sessionId,
+        date: today,
+        title:
+          task?.title ||
+          task?.activity ||
+          task?.name ||
+          "Focus Session",
+        taskId: task?.id || null,
+        source: "focusMode",
+        duration: Number(duration) || Number(minutes) || 0,
+        minutes: Number(minutes) || 0,
+        elapsedSeconds: Number(elapsedSeconds) || 0,
+        completed: completed === true,
+        completedAt: new Date().toISOString(),
+      }
+    );
+  }
+
+  /* =====================================================
      UI
   ===================================================== */
 
   return (
     <div className="home-page">
+      <style>{`
+        .home-page .task-item,
+        .home-page .assessment-item,
+        .home-page .home-list-item {
+          padding: 12px 16px;
+          box-sizing: border-box;
+        }
+
+        .home-page .task-item > span,
+        .home-page .assessment-item > span,
+        .home-page .home-list-item > span {
+          min-width: 0;
+        }
+      `}</style>
 
       {/* =================================================
           HEADER
@@ -1533,44 +1637,6 @@ function Home() {
           </p>
 
         </div>
-
-
-        <Link
-          to="/profile"
-          className="profile-box"
-        >
-
-          <div className="profile-icon">
-
-            {profile?.photo ? (
-              <img
-                src={profile.photo}
-                alt="Profile"
-                className="profile-photo-thumb"
-              />
-            ) : (
-              <UserCircle
-                size={42}
-              />
-            )}
-
-          </div>
-
-          <div>
-
-            <strong>
-              {profile?.name ||
-                "My Profile"}
-            </strong>
-
-            <span>
-              {profile?.role ||
-                "Add your details"}
-            </span>
-
-          </div>
-
-        </Link>
 
       </header>
 
@@ -1606,8 +1672,169 @@ function Home() {
 
 
       {/* =================================================
+          GLOBAL SEARCH
+      ================================================= */}
+
+      <section
+        className="section-card global-search-card"
+        style={{
+          marginBottom: "24px",
+          padding: "24px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          className="section-title"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            marginBottom: "14px",
+          }}
+        >
+          <Search size={22} />
+          <h2 style={{ margin: 0 }}>Global Search</h2>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            width: "100%",
+          }}
+        >
+          <Search size={19} style={{ flex: "0 0 auto" }} />
+
+          <input
+            type="search"
+            value={globalSearch}
+            onChange={(event) => setGlobalSearch(event.target.value)}
+            placeholder="Search your TASKBAR data..."
+            aria-label="Search TASKBAR"
+            style={{
+              width: "100%",
+              minWidth: 0,
+              padding: "12px 14px",
+              borderRadius: "10px",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              background: "rgba(255, 255, 255, 0.05)",
+              color: "inherit",
+              outline: "none",
+            }}
+          />
+        </div>
+
+        {globalSearch.trim() && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              marginTop: "16px",
+            }}
+          >
+            {globalSearchResults.length === 0 ? (
+              <p className="empty-topics" style={{ margin: 0 }}>
+                No matching TASKBAR items found.
+              </p>
+            ) : (
+              globalSearchResults.map((result) => (
+                <Link
+                  key={result.id}
+                  to={result.path}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "14px",
+                    padding: "13px 15px",
+                    borderRadius: "10px",
+                    background: "rgba(255, 255, 255, 0.04)",
+                    border: "1px solid rgba(255, 255, 255, 0.10)",
+                    color: "inherit",
+                    textDecoration: "none",
+                    minWidth: 0,
+                  }}
+                >
+                  <span style={{ minWidth: 0 }}>
+                    <strong
+                      style={{
+                        display: "block",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {result.title}
+                    </strong>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: "4px",
+                        opacity: 0.72,
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {result.source}
+                      {result.details ? ` • ${result.details}` : ""}
+                    </span>
+                  </span>
+
+                  <span style={{ flex: "0 0 auto" }}>→</span>
+                </Link>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
+
+      {/* =================================================
+          DAILY PLANNER
+      ================================================= */}
+
+      <TodayPlanner
+        tasks={centralTasks}
+        reminders={reminders}
+        timetable={timetable}
+        studySessions={studySessions}
+        currentGoal={currentGoal}
+        today={today}
+      />
+
+      {/* =================================================
+        CALENDAR VIEW
+          ================================================= */}
+
+        <section
+          className="section-card home-calendar-section"
+            style={{
+               marginBottom: "24px",
+                padding: "24px",
+              overflow: "hidden",
+            }}
+            >
+          <CalendarView
+    tasks={centralTasks}
+    timetable={timetable}
+    today={today}
+      />
+    </section>
+
+
+
+      {/* =================================================
           SMART SUGGESTIONS
       ================================================= */}
+
+      {/* =================================================
+          FOCUS MODE
+      ================================================= */}
+
+      <FocusMode
+        tasks={centralTasks}
+        onSessionComplete={handleFocusSessionComplete}
+      />
+
 
       <section
         className="section-card smart-suggestions-card"
@@ -1809,33 +2036,6 @@ function Home() {
 
           <span>
             From Study Sessions
-          </span>
-
-        </div>
-
-
-        {/* Screen Time */}
-
-        <div className="home-card">
-
-          <div className="card-icon">
-            <Smartphone
-              size={22}
-            />
-          </div>
-
-          <p>
-            Screen Time
-          </p>
-
-          <h2>
-            {formatMinutes(
-              screenTimeMinutesToday
-            )}
-          </h2>
-
-          <span>
-            All screen activity today
           </span>
 
         </div>
@@ -2242,13 +2442,6 @@ function Home() {
               <YAxis />
 
               <Tooltip />
-
-              <Line
-                type="monotone"
-                dataKey="screenTimeHrs"
-                name="Screen time (h)"
-                stroke="#2563eb"
-              />
 
               <Line
                 type="monotone"

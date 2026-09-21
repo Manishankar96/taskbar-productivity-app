@@ -10,6 +10,8 @@ import {
   X,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
+
 const APPLICATIONS_UPDATED_EVENT = "taskbarApplicationsUpdated";
 
 const STATUS_OPTIONS = [
@@ -344,6 +346,12 @@ export default function Applications() {
 
       {/* Add Form */}
       {showForm && (
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="applications-form-modal"
+        >
         <section className="applications-card applications-form-card">
           <div className="applications-form-header">
             <h2>
@@ -492,6 +500,8 @@ export default function Applications() {
             </button>
           </div>
         </section>
+
+        </Modal>
       )}
 
       {/* Applications */}

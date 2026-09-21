@@ -8,6 +8,7 @@ import {
   Clock3,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
 import {
   getStudySessions,
   saveStudySessions,
@@ -465,7 +466,13 @@ function StudySessions() {
 
       {/* FORM */}
 
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="study-sessions-form-modal"
+      >
+
         <section
           className="module-form-card"
           style={{
@@ -690,7 +697,7 @@ function StudySessions() {
           </form>
 
         </section>
-      )}
+      </Modal>
 
 
       {/* WEEKLY TREND */}

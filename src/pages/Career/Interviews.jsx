@@ -9,6 +9,7 @@ import {
   X,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
 import {
   getItemsFromFirestore,
   saveItemsToFirestore,
@@ -483,7 +484,13 @@ export default function Interviews() {
       </div>
 
       {/* Form */}
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="interviews-form-modal"
+      >
+
         <section className="interviews-card interviews-form-card">
           <div className="interviews-form-header">
             <div>
@@ -680,7 +687,7 @@ export default function Interviews() {
             </button>
           </div>
         </section>
-      )}
+      </Modal>
 
       {/* Interview List */}
       <section className="interviews-card">

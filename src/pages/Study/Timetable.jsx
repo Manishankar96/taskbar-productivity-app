@@ -9,6 +9,8 @@ import {
   BellOff,
 } from "lucide-react";
 
+import Modal from "../../components/common/Modal";
+
 import {
   getTimetable,
   saveTimetable,
@@ -733,7 +735,12 @@ function Timetable() {
 
       {/* ADD / EDIT FORM */}
 
-      {showForm && (
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="timetable-form-modal"
+      >
         <section
           className="module-form-card"
           style={{
@@ -987,7 +994,7 @@ function Timetable() {
           </form>
 
         </section>
-      )}
+      </Modal>
 
 
       {/* 11-DAY CALENDAR */}

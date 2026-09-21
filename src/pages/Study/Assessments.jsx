@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck, Plus, Pencil, Trash2, X } from "lucide-react";
 import { getAssessments, saveAssessments } from "../../utils/db";
 import { calculateDaysRemaining, formatDaysRemaining } from "../../utils/calculations";
+import Modal from "../../components/common/Modal";
 
 const TYPES = ["Coding Assessment", "Interview", "Assignment", "Online Test", "Project Submission"];
 
@@ -143,66 +144,73 @@ function Assessments() {
       </section>
 
       {showForm && (
-        <section className="module-form-card">
-          <div className="add-topic-header">
-            <h2>{editingItem ? "Edit Assessment" : "Add Assessment"}</h2>
-            <button type="button" className="close-button" onClick={closeForm}>
-              <X size={20} />
-            </button>
-          </div>
-          <form className="grid-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Title</label>
-              <input
-                type="text"
-                placeholder="Example: Backend Round 2"
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
+        <Modal
+          isOpen={showForm}
+          onClose={closeForm}
+          showCloseButton={false}
+          className="assessments-form-modal"
+        >
+          <section className="module-form-card">
+            <div className="add-topic-header">
+              <h2>{editingItem ? "Edit Assessment" : "Add Assessment"}</h2>
+              <button type="button" className="close-button" onClick={closeForm}>
+                <X size={20} />
+              </button>
             </div>
-            <div className="form-group">
-              <label>Type</label>
-              <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-                {TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Date</label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label>Status</label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-              >
-                <option value="upcoming">Upcoming</option>
-                <option value="completed">Completed</option>
-                <option value="missed">Missed</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label>Notes (optional)</label>
-              <input
-                type="text"
-                placeholder="Prep links, contacts, etc."
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-            <button type="submit" className="save-topic-button">
-              {editingItem ? "Save Changes" : "Add Assessment"}
-            </button>
-          </form>
-        </section>
+            <form className="grid-form" onSubmit={handleSubmit}>
+              <div className="form-group">
+                <label>Title</label>
+                <input
+                  type="text"
+                  placeholder="Example: Backend Round 2"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Type</label>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  {TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Date</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>Status</label>
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="completed">Completed</option>
+                  <option value="missed">Missed</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Notes (optional)</label>
+                <input
+                  type="text"
+                  placeholder="Prep links, contacts, etc."
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                />
+              </div>
+              <button type="submit" className="save-topic-button">
+                {editingItem ? "Save Changes" : "Add Assessment"}
+              </button>
+            </form>
+          </section>
+        </Modal>
       )}
 
       <section className="learning-section">

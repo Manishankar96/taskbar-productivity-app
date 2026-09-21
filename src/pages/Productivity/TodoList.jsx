@@ -12,7 +12,24 @@ import {
   Target,
   ClipboardCheck,
   Clock3,
+  Archive as ArchiveIcon,
+  RotateCcw,
 } from "lucide-react";
+
+import {
+  getTodoList,
+  saveTodoList,
+  getTopics,
+  saveTopics,
+  getGoals,
+  saveGoals,
+  getTimetable,
+  saveTimetable,
+  getAssessments,
+  saveAssessments,
+  getQuickTasks,
+  saveQuickTasks,
+} from "../../utils/db";
 
 import {
   getItemsFromFirestore,
@@ -22,13 +39,15 @@ import {
 } from "../../firebase/firestore";
 
 import { getTodayLocalDateKey } from "../../utils/calculations";
+import Modal from "../../components/common/Modal";
 
-const TODO_COLLECTION = "todoList";
-const LEARNING_COLLECTION = "learning";
-const GOALS_COLLECTION = "goals";
-const TIMETABLE_COLLECTION = "timetable";
-const ASSESSMENTS_COLLECTION = "assessments";
-const QUICK_TASKS_COLLECTION = "quickTasks";
+import {
+  ARCHIVE_RETENTION_DAYS,
+  cleanupArchive,
+  createArchiveItem,
+  getArchiveAge,
+  getArchiveDaysRemaining,
+} from "../../services/archiveService";
 
 const emptyForm = {
   title: "",
@@ -72,8 +91,18 @@ function getCurrentWeekday() {
   return days[new Date().getDay()];
 }
 
+function getLinkedArchiveKey(task) {
+  if (!task?.source || task?.sourceId === undefined || task?.sourceId === null) {
+    return "";
+  }
 
+  const datePart =
+    task.source === "timetable"
+      ? String(task.date || "")
+      : "";
 
+  return `${task.source}:${String(task.sourceId)}:${datePart}`;
+}
 
 function TodoList() {
   const [todos, setTodos] = useState([]);
@@ -102,161 +131,153 @@ function TodoList() {
         timetable,
         assessments,
         quickTasks,
-        interviews,
-        jobPreparationItems,
-        applications,
-        savedJobs,
       ] = await Promise.all([
-        getItemsFromFirestore(LEARNING_COLLECTION),
-        getItemsFromFirestore(GOALS_COLLECTION),
-        getItemsFromFirestore(TIMETABLE_COLLECTION),
-        getItemsFromFirestore(ASSESSMENTS_COLLECTION),
-        getItemsFromFirestore(QUICK_TASKS_COLLECTION),
-        getItemsFromFirestore("interviews"),
-        getItemsFromFirestore("jobPreparation"),
-        getItemsFromFirestore("applications"),
-        getItemsFromFirestore("savedJobs"),
+        getTopics(),
+        getGoals(),
+        getTimetable(),
+        getAssessments(),
+        getQuickTasks(),
       ]);
 
       const unified = [];
 
-      (Array.isArray(topics) ? topics : []).forEach((topic) => {
-        if (!topic?.plannedDate) return;
-        unified.push({
-          id: `learning-${topic.id}`,
-          source: "learning",
-          sourceId: topic.id,
-          title: topic.name || "Learning Topic",
-          date: topic.plannedDate,
-          completed: topic.status === "completed",
-          type: "Learning",
-          icon: "learning",
-          skill: topic.skill || "",
-        });
-      });
+      /*
+       * --------------------------------------------------------
+       * LEARNING
+       * --------------------------------------------------------
+       */
 
-      (Array.isArray(goals) ? goals : []).forEach((goal) => {
-        if (!goal?.targetDate) return;
-        unified.push({
-          id: `goal-${goal.id}`,
-          source: "goals",
-          sourceId: goal.id,
-          title: goal.title || "Goal",
-          date: goal.targetDate,
-          completed: goal.status === "completed",
-          type: "Goal",
-          icon: "goal",
-          skill: goal.skill || "",
-        });
-      });
+      (Array.isArray(topics) ? topics : []).forEach(
+        (topic) => {
+          if (!topic?.plannedDate) return;
 
-      (Array.isArray(assessments) ? assessments : []).forEach((assessment) => {
-        if (!assessment?.date) return;
-        unified.push({
-          id: `assessment-${assessment.id}`,
-          source: "assessments",
-          sourceId: assessment.id,
-          title: assessment.title || "Assessment",
-          date: assessment.date,
-          completed: assessment.status === "completed",
-          type: "Assessment",
-          icon: "assessment",
-          skill: assessment.type || "",
-        });
-      });
-
-      (Array.isArray(quickTasks) ? quickTasks : []).forEach((task) => {
-        unified.push({
-          id: `quick-${task.id}`,
-          source: "quickTasks",
-          sourceId: task.id,
-          title: task.task || "Task",
-          date: task.dueDate || "",
-          completed: task.status === "completed",
-          type: "Task",
-          icon: "task",
-          skill: task.priority ? `${task.priority} Priority` : "",
-        });
-      });
-
-      (Array.isArray(interviews) ? interviews : []).forEach((interview) => {
-        if (!interview?.date) return;
-        const completedStatuses = ["Completed", "Passed", "Failed", "Cancelled"];
-        unified.push({
-          id: `interview-${interview.id}`,
-          source: "interviews",
-          sourceId: interview.id,
-          title: `Interview – ${interview.company || "Company"} – ${interview.role || "Job Role"}`,
-          date: interview.date,
-          completed: completedStatuses.includes(interview.status),
-          type: "Interview",
-          icon: "interview",
-          skill: interview.round || "",
-          startTime: interview.time || "",
-        });
-      });
-
-      const jobPreparationTasks = (Array.isArray(jobPreparationItems) ? jobPreparationItems : []).flatMap((item) =>
-        Array.isArray(item?.tasks) ? item.tasks : [item]
+          unified.push({
+            id: `learning-${topic.id}`,
+            source: "learning",
+            sourceId: topic.id,
+            title: topic.name || "Learning Topic",
+            date: topic.plannedDate,
+            completed: topic.status === "completed",
+            type: "Learning",
+            icon: "learning",
+            skill: topic.skill || "",
+          });
+        }
       );
 
-      jobPreparationTasks.forEach((task) => {
-        if (!task?.id || !task?.dueDate) return;
-        unified.push({
-          id: `job-preparation-${task.id}`,
-          source: "jobPreparation",
-          sourceId: task.id,
-          title: task.title || "Job Preparation Task",
-          date: task.dueDate,
-          completed: task.completed === true,
-          type: "Job Preparation",
-          icon: "task",
-          skill: "Career",
-        });
-      });
+      /*
+       * --------------------------------------------------------
+       * GOALS
+       * --------------------------------------------------------
+       */
 
-      (Array.isArray(applications) ? applications : []).forEach((application) => {
-        if (!application?.followUpDate) return;
-        const closedStatus = application.status === "Rejected" || application.status === "Withdrawn";
-        unified.push({
-          id: `application-follow-up-${application.id}`,
-          source: "applications",
-          sourceId: application.id,
-          title: `Follow up: ${application.role || "Job Application"} – ${application.company || "Company"}`,
-          date: application.followUpDate,
-          completed: closedStatus || application.status === "Selected" || application.followUpCompleted === true,
-          type: "Application Follow-up",
-          icon: "task",
-          skill: application.company || "",
-        });
-      });
+      (Array.isArray(goals) ? goals : []).forEach(
+        (goal) => {
+          if (!goal?.targetDate) return;
 
-      (Array.isArray(savedJobs) ? savedJobs : []).forEach((job) => {
-        if (!job?.actionDate || job.actionDate !== today) return;
-        unified.push({
-          id: `saved-job-action-${job.id}`,
-          source: "savedJobs",
-          sourceId: job.id,
-          title: `Apply: ${job.role || "Job"} – ${job.company || "Company"}`,
-          date: job.actionDate,
-          completed: job.actionCompleted === true,
-          type: "Saved Job Action",
-          icon: "task",
-          skill: job.company || "",
-        });
-      });
+          unified.push({
+            id: `goal-${goal.id}`,
+            source: "goals",
+            sourceId: goal.id,
+            title: goal.title || "Goal",
+            date: goal.targetDate,
+            completed: goal.status === "completed",
+            type: "Goal",
+            icon: "goal",
+            skill: goal.skill || "",
+          });
+        }
+      );
 
-      const currentWeekday = getCurrentWeekday();
-      (Array.isArray(timetable) ? timetable : []).forEach((entry) => {
-        if (entry?.day !== currentWeekday || !entry?.activity) return;
-        if (entry.status === "completed" || entry.status === "missed") return;
+      /*
+       * --------------------------------------------------------
+       * ASSESSMENTS
+       * --------------------------------------------------------
+       */
+
+      (Array.isArray(assessments) ? assessments : []).forEach(
+        (assessment) => {
+          if (!assessment?.date) return;
+
+          unified.push({
+            id: `assessment-${assessment.id}`,
+            source: "assessments",
+            sourceId: assessment.id,
+            title:
+              assessment.title || "Assessment",
+            date: assessment.date,
+            completed:
+              assessment.status === "completed",
+            type: "Assessment",
+            icon: "assessment",
+            skill: assessment.type || "",
+          });
+        }
+      );
+
+      /*
+       * --------------------------------------------------------
+       * QUICK TASKS
+       * --------------------------------------------------------
+       */
+
+      (Array.isArray(quickTasks) ? quickTasks : []).forEach(
+        (task) => {
+          unified.push({
+            id: `quick-${task.id}`,
+            source: "quickTasks",
+            sourceId: task.id,
+            title: task.task || "Task",
+            date: task.dueDate || "",
+            completed:
+              task.status === "completed",
+            type: "Task",
+            icon: "task",
+            skill: task.priority
+              ? `${task.priority} Priority`
+              : "",
+          });
+        }
+      );
+
+      /*
+       * --------------------------------------------------------
+       * TODAY'S TIMETABLE
+       *
+       * Timetable is recurring by weekday.
+       * Therefore only today's entries become today's tasks.
+       * --------------------------------------------------------
+       */
+
+      const currentWeekday =
+        getCurrentWeekday();
+
+      (Array.isArray(timetable)
+        ? timetable
+        : []
+      ).forEach((entry) => {
+        if (
+          entry?.day !== currentWeekday ||
+          !entry?.activity
+        ) {
+          return;
+        }
+
+        if (
+          entry.status === "completed" ||
+          entry.status === "missed"
+        ) {
+          return;
+        }
+
         unified.push({
           id: `timetable-${entry.id}-${today}`,
           source: "timetable",
           sourceId: entry.id,
           title: entry.activity,
           date: today,
-          completed: entry.status === "completed",
+          completed:
+            entry.status === "completed",
           type: "Timetable",
           icon: "timetable",
           skill: entry.category || "",
@@ -265,9 +286,25 @@ function TodoList() {
         });
       });
 
-      setLinkedTasks(unified);
+      const archivedKeys = new Set(
+        todos
+          .filter((item) => item?.archived === true)
+          .map((item) => String(item.archiveKey || ""))
+          .filter(Boolean)
+      );
+
+      const visibleLinkedTasks = unified.filter((task) => {
+        const archiveKey = getLinkedArchiveKey(task);
+        return !archiveKey || !archivedKeys.has(archiveKey);
+      });
+
+      setLinkedTasks(visibleLinkedTasks);
     } catch (error) {
-      console.error("Failed to load linked tasks:", error);
+      console.error(
+        "Failed to load linked tasks:",
+        error
+      );
+
       setLinkedTasks([]);
     }
   }
@@ -278,72 +315,319 @@ function TodoList() {
 
     async function load() {
       try {
-        let cloudTodos = await getItemsFromFirestore(TODO_COLLECTION);
-        cloudTodos = Array.isArray(cloudTodos)
-          ? cloudTodos.map((item) => ({
+        /*
+         * ======================================================
+         * PERSONAL TO-DO LOAD
+         * ======================================================
+         */
+
+        const localData =
+          await getTodoList();
+
+        const localTodos =
+          Array.isArray(localData)
+            ? localData
+            : [];
+
+        if (isMounted) {
+          setTodos(
+            localTodos.map((item) => ({
               ...item,
               id: String(item.id),
               date: item.date || "",
-              completed: item.completed === true,
+              completed:
+                item.completed === true,
             }))
-          : [];
-
-        if (isMounted) {
-          setTodos(cloudTodos);
+          );
         }
 
-        unsubscribe = subscribeToFirestoreCollection(
-          TODO_COLLECTION,
-          (firestoreItems) => {
-            if (!isMounted) return;
+        /*
+         * ======================================================
+         * FIRESTORE
+         * ======================================================
+         */
 
-            const normalized = Array.isArray(firestoreItems)
-              ? firestoreItems.map((item) => ({
-                  ...item,
-                  id: String(item.id),
-                  date: item.date || "",
-                  completed: item.completed === true,
-                }))
-              : [];
+        let cloudTodos = [];
 
-            setTodos(normalized);
+        try {
+          cloudTodos =
+            await getItemsFromFirestore(
+              "todoList"
+            );
+
+          if (!Array.isArray(cloudTodos)) {
+            cloudTodos = [];
           }
+        } catch (error) {
+          console.error(
+            "Failed to load todo list from Firestore:",
+            error
+          );
+        }
+
+        cloudTodos = cloudTodos.map(
+          (item) => ({
+            ...item,
+            id: String(item.id),
+            date: item.date || "",
+            completed:
+              item.completed === true,
+          })
         );
+
+        /*
+         * ======================================================
+         * MERGE
+         * ======================================================
+         */
+
+        const mergedMap = new Map();
+
+        localTodos.forEach((item) => {
+          if (
+            item?.id !== undefined &&
+            item?.id !== null
+          ) {
+            mergedMap.set(
+              String(item.id),
+              {
+                ...item,
+                id: String(item.id),
+                date: item.date || "",
+                completed:
+                  item.completed === true,
+              }
+            );
+          }
+        });
+
+        cloudTodos.forEach((item) => {
+          if (
+            item?.id !== undefined &&
+            item?.id !== null
+          ) {
+            mergedMap.set(
+              String(item.id),
+              item
+            );
+          }
+        });
+
+        const mergedTodos =
+          Array.from(mergedMap.values());
+
+        /*
+         * ======================================================
+         * ARCHIVE CLEANUP
+         *
+         * Only records already marked as archived are passed to
+         * cleanupArchive. Active tasks are never removed merely
+         * because their normal task date is old.
+         * ======================================================
+         */
+        const archivedItems = mergedTodos.filter(
+          (item) => item?.archived === true
+        );
+
+        const retainedArchivedItems =
+          cleanupArchive(archivedItems);
+
+        const retainedArchiveIds = new Set(
+          retainedArchivedItems.map((item) =>
+            String(item.id)
+          )
+        );
+
+        const expiredArchivedItems =
+          archivedItems.filter(
+            (item) =>
+              !retainedArchiveIds.has(
+                String(item.id)
+              )
+          );
+
+        const cleanedTodos = mergedTodos.filter(
+          (item) =>
+            item?.archived !== true ||
+            retainedArchiveIds.has(
+              String(item.id)
+            )
+        );
+
+        for (const expiredItem of expiredArchivedItems) {
+          try {
+            await deleteItemFromFirestore(
+              "todoList",
+              String(expiredItem.id)
+            );
+          } catch (error) {
+            console.error(
+              "Failed to remove expired archived task:",
+              error
+            );
+          }
+        }
+
+        if (isMounted) {
+          setTodos(cleanedTodos);
+        }
+
+        await saveTodoList(
+          cleanedTodos
+        );
+
+        /*
+         * ======================================================
+         * UPLOAD LOCAL-ONLY TASKS
+         * ======================================================
+         */
+
+        const cloudIds = new Set(
+          cloudTodos.map((item) =>
+            String(item.id)
+          )
+        );
+
+        for (const item of localTodos) {
+          if (
+            item?.id === undefined ||
+            item?.id === null
+          ) {
+            continue;
+          }
+
+          const itemId =
+            String(item.id);
+
+          if (!cloudIds.has(itemId)) {
+            try {
+              await saveItemToFirestore(
+                "todoList",
+                itemId,
+                {
+                  ...item,
+                  id: itemId,
+                }
+              );
+            } catch (error) {
+              console.error(
+                "Failed to upload todo task:",
+                error
+              );
+            }
+          }
+        }
+
+        /*
+         * ======================================================
+         * FIRESTORE REAL-TIME LISTENER
+         * ======================================================
+         */
+
+        unsubscribe =
+          subscribeToFirestoreCollection(
+            "todoList",
+            async (firestoreItems) => {
+              if (!isMounted) {
+                return;
+              }
+
+              const normalized =
+                Array.isArray(
+                  firestoreItems
+                )
+                  ? firestoreItems.map(
+                      (item) => ({
+                        ...item,
+                        id: String(
+                          item.id
+                        ),
+                        date:
+                          item.date ||
+                          "",
+                        completed:
+                          item.completed ===
+                          true,
+                      })
+                    )
+                  : [];
+
+              setTodos(normalized);
+
+              try {
+                await saveTodoList(
+                  normalized
+                );
+              } catch (error) {
+                console.error(
+                  "Failed to update IndexedDB:",
+                  error
+                );
+              }
+            }
+          );
+
+        /*
+         * ======================================================
+         * LOAD LINKED SYSTEMS
+         * ======================================================
+         */
 
         await loadLinkedTasks();
       } catch (error) {
-        console.error("Failed to load todo list:", error);
-        if (isMounted) setTodos([]);
+        console.error(
+          "Failed to load todo list:",
+          error
+        );
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     load();
 
+    /*
+     * Refresh when returning to the page/app.
+     */
+
     function refreshLinkedTasks() {
       loadLinkedTasks();
     }
 
-    window.addEventListener("focus", refreshLinkedTasks);
-    document.addEventListener("visibilitychange", refreshLinkedTasks);
+    window.addEventListener(
+      "focus",
+      refreshLinkedTasks
+    );
 
-    window.addEventListener("taskbarInterviewsUpdated", refreshLinkedTasks);
-    window.addEventListener("taskbarJobPreparationUpdated", refreshLinkedTasks);
-    window.addEventListener("taskbarApplicationsUpdated", refreshLinkedTasks);
-    window.addEventListener("taskbarSavedJobsUpdated", refreshLinkedTasks);
+    document.addEventListener(
+      "visibilitychange",
+      refreshLinkedTasks
+    );
 
     return () => {
       isMounted = false;
-      if (unsubscribe) unsubscribe();
-      window.removeEventListener("focus", refreshLinkedTasks);
-      document.removeEventListener("visibilitychange", refreshLinkedTasks);
-      window.removeEventListener("taskbarInterviewsUpdated", refreshLinkedTasks);
-      window.removeEventListener("taskbarJobPreparationUpdated", refreshLinkedTasks);
-      window.removeEventListener("taskbarApplicationsUpdated", refreshLinkedTasks);
-      window.removeEventListener("taskbarSavedJobsUpdated", refreshLinkedTasks);
+
+      if (unsubscribe) {
+        unsubscribe();
+      }
+
+      window.removeEventListener(
+        "focus",
+        refreshLinkedTasks
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        refreshLinkedTasks
+      );
     };
   }, []);
+
+  useEffect(() => {
+    loadLinkedTasks();
+  }, [todos]);
 
   /*
    * ============================================================
@@ -351,23 +635,50 @@ function TodoList() {
    * ============================================================
    */
 
-  async function persist(updated, changedTodo = null) {
-    const normalized = updated.map((item) => ({
-      ...item,
-      id: String(item.id),
-      date: item.date || "",
-      completed: item.completed === true,
-    }));
+  async function persist(
+    updated,
+    changedTodo = null
+  ) {
+    const normalized =
+      updated.map((item) => ({
+        ...item,
+        id: String(item.id),
+        date: item.date || "",
+        completed:
+          item.completed === true,
+      }));
 
     setTodos(normalized);
 
+    try {
+      await saveTodoList(
+        normalized
+      );
+    } catch (error) {
+      console.error(
+        "Failed to save todo list locally:",
+        error
+      );
+    }
+
     if (changedTodo) {
-      await saveItemToFirestore(TODO_COLLECTION, String(changedTodo.id), {
-        ...changedTodo,
-        id: String(changedTodo.id),
-        date: changedTodo.date || "",
-        completed: changedTodo.completed === true,
-      });
+      try {
+        await saveItemToFirestore(
+          "todoList",
+          String(changedTodo.id),
+          {
+            ...changedTodo,
+            id: String(
+              changedTodo.id
+            ),
+          }
+        );
+      } catch (error) {
+        console.error(
+          "Failed to save todo task to Firestore:",
+          error
+        );
+      }
     }
   }
 
@@ -520,166 +831,182 @@ function TodoList() {
    */
 
   async function toggleLinkedTask(task) {
-    const completed = task.completed !== true;
+    const completed =
+      task.completed !== true;
 
     try {
-      if (task.source === "learning") {
-        const topics = await getItemsFromFirestore(LEARNING_COLLECTION);
-        const updated = topics.map((topic) =>
-          String(topic.id) === String(task.sourceId)
-            ? {
-                ...topic,
-                status: completed ? "completed" : "remaining",
-                ...(completed
-                  ? { completedAt: topic.completedAt || today }
-                  : {}),
-              }
-            : topic
-        );
-        await Promise.all(
-          updated.map((topic) =>
-            saveItemToFirestore(
-              LEARNING_COLLECTION,
-              String(topic.id),
-              topic
-            )
-          )
-        );
-      } else if (task.source === "goals") {
-        const goals = await getItemsFromFirestore(GOALS_COLLECTION);
-        const updated = goals.map((goal) =>
-          String(goal.id) === String(task.sourceId)
-            ? { ...goal, status: completed ? "completed" : "pending" }
-            : goal
-        );
-        await Promise.all(
-          updated.map((goal) =>
-            saveItemToFirestore(
-              GOALS_COLLECTION,
-              String(goal.id),
-              goal
-            )
-          )
-        );
-      } else if (task.source === "assessments") {
-        const assessments = await getItemsFromFirestore(ASSESSMENTS_COLLECTION);
-        const updated = assessments.map((assessment) =>
-          String(assessment.id) === String(task.sourceId)
-            ? { ...assessment, status: completed ? "completed" : "upcoming" }
-            : assessment
-        );
-        await Promise.all(
-          updated.map((assessment) =>
-            saveItemToFirestore(
-              ASSESSMENTS_COLLECTION,
-              String(assessment.id),
-              assessment
-            )
-          )
-        );
-      } else if (task.source === "quickTasks") {
-        const quickTasks = await getItemsFromFirestore(QUICK_TASKS_COLLECTION);
-        const updated = quickTasks.map((item) =>
-          String(item.id) === String(task.sourceId)
-            ? { ...item, status: completed ? "completed" : "pending" }
-            : item
-        );
-        await Promise.all(
-          updated.map((item) =>
-            saveItemToFirestore(
-              QUICK_TASKS_COLLECTION,
-              String(item.id),
-              item
-            )
-          )
-        );
-      } else if (task.source === "interviews") {
-        const interviews = await getItemsFromFirestore("interviews");
-        const interview = interviews.find(
-          (item) => String(item.id) === String(task.sourceId)
-        );
-        if (interview) {
-          await saveItemToFirestore("interviews", String(interview.id), {
-            ...interview,
-            status: completed ? "Completed" : "Scheduled",
-            updatedAt: new Date().toISOString(),
-          });
-          window.dispatchEvent(new Event("taskbarInterviewsUpdated"));
-        }
-      } else if (task.source === "jobPreparation") {
-        const items = await getItemsFromFirestore("jobPreparation");
-        const container = items.find((item) => Array.isArray(item?.tasks));
+      /*
+       * LEARNING
+       */
 
-        if (container) {
-          const updatedTasks = container.tasks.map((item) =>
-            String(item.id) === String(task.sourceId)
-              ? { ...item, completed, updatedAt: new Date().toISOString() }
-              : item
+      if (
+        task.source ===
+        "learning"
+      ) {
+        const topics =
+          await getTopics();
+
+        const updated =
+          topics.map((topic) =>
+            String(topic.id) ===
+            String(task.sourceId)
+              ? {
+                  ...topic,
+                  status:
+                    completed
+                      ? "completed"
+                      : "remaining",
+                  completedAt:
+                    completed
+                      ? topic.completedAt ||
+                        today
+                      : topic.completedAt,
+                }
+              : topic
           );
-          await saveItemToFirestore("jobPreparation", String(container.id), {
-            ...container,
-            tasks: updatedTasks,
-          });
-        } else {
-          const jobTask = items.find(
-            (item) => String(item.id) === String(task.sourceId)
+
+        await saveTopics(
+          updated
+        );
+      }
+
+      /*
+       * GOALS
+       */
+
+      else if (
+        task.source ===
+        "goals"
+      ) {
+        const goals =
+          await getGoals();
+
+        const updated =
+          goals.map((goal) =>
+            String(goal.id) ===
+            String(task.sourceId)
+              ? {
+                  ...goal,
+                  status:
+                    completed
+                      ? "completed"
+                      : "pending",
+                }
+              : goal
           );
-          if (jobTask) {
-            await saveItemToFirestore("jobPreparation", String(jobTask.id), {
-              ...jobTask,
-              completed,
-              updatedAt: new Date().toISOString(),
-            });
-          }
-        }
-        window.dispatchEvent(new Event("taskbarJobPreparationUpdated"));
-      } else if (task.source === "applications") {
-        const applications = await getItemsFromFirestore("applications");
-        const application = applications.find(
-          (item) => String(item.id) === String(task.sourceId)
+
+        await saveGoals(
+          updated
         );
-        if (application) {
-          await saveItemToFirestore("applications", String(application.id), {
-            ...application,
-            followUpCompleted: completed,
-            updatedAt: new Date().toISOString(),
-          });
-          window.dispatchEvent(new Event("taskbarApplicationsUpdated"));
-        }
-      } else if (task.source === "savedJobs") {
-        const savedJobs = await getItemsFromFirestore("savedJobs");
-        const job = savedJobs.find(
-          (item) => String(item.id) === String(task.sourceId)
+      }
+
+      /*
+       * ASSESSMENTS
+       */
+
+      else if (
+        task.source ===
+        "assessments"
+      ) {
+        const assessments =
+          await getAssessments();
+
+        const updated =
+          assessments.map(
+            (assessment) =>
+              String(
+                assessment.id
+              ) ===
+              String(
+                task.sourceId
+              )
+                ? {
+                    ...assessment,
+                    status:
+                      completed
+                        ? "completed"
+                        : "upcoming",
+                  }
+                : assessment
+          );
+
+        await saveAssessments(
+          updated
         );
-        if (job) {
-          await saveItemToFirestore("savedJobs", String(job.id), {
-            ...job,
-            actionCompleted: completed,
-            updatedAt: new Date().toISOString(),
-          });
-          window.dispatchEvent(new Event("taskbarSavedJobsUpdated"));
-        }
-      } else if (task.source === "timetable") {
-        const timetable = await getItemsFromFirestore(TIMETABLE_COLLECTION);
-        const updated = timetable.map((entry) =>
-          String(entry.id) === String(task.sourceId)
-            ? { ...entry, status: completed ? "completed" : "planned" }
-            : entry
+      }
+
+      /*
+       * QUICK TASKS
+       */
+
+      else if (
+        task.source ===
+        "quickTasks"
+      ) {
+        const quickTasks =
+          await getQuickTasks();
+
+        const updated =
+          quickTasks.map(
+            (item) =>
+              String(item.id) ===
+              String(
+                task.sourceId
+              )
+                ? {
+                    ...item,
+                    status:
+                      completed
+                        ? "completed"
+                        : "pending",
+                  }
+                : item
+          );
+
+        await saveQuickTasks(
+          updated
         );
-        await Promise.all(
-          updated.map((entry) =>
-            saveItemToFirestore(
-              TIMETABLE_COLLECTION,
-              String(entry.id),
-              entry
-            )
-          )
+      }
+
+      /*
+       * TIMETABLE
+       */
+
+      else if (
+        task.source ===
+        "timetable"
+      ) {
+        const timetable =
+          await getTimetable();
+
+        const updated =
+          timetable.map(
+            (entry) =>
+              String(entry.id) ===
+              String(
+                task.sourceId
+              )
+                ? {
+                    ...entry,
+                    status:
+                      completed
+                        ? "completed"
+                        : "planned",
+                  }
+                : entry
+          );
+
+        await saveTimetable(
+          updated
         );
       }
 
       await loadLinkedTasks();
     } catch (error) {
-      console.error("Failed to update linked task:", error);
+      console.error(
+        "Failed to update linked task:",
+        error
+      );
     }
   }
 
@@ -713,11 +1040,250 @@ function TodoList() {
     setTodos(updated);
 
     try {
-      await deleteItemFromFirestore(TODO_COLLECTION, String(todo.id));
+      await saveTodoList(
+        updated
+      );
     } catch (error) {
-      console.error("Failed to delete todo from Firestore:", error);
+      console.error(
+        "Failed to delete todo locally:",
+        error
+      );
+    }
+
+    try {
+      await deleteItemFromFirestore(
+        "todoList",
+        String(todo.id)
+      );
+    } catch (error) {
+      console.error(
+        "Failed to delete todo from Firestore:",
+        error
+      );
     }
   }
+
+  /*
+   * ============================================================
+   * ARCHIVE
+   * ============================================================
+   */
+
+  async function archiveTodo(todo) {
+    if (!todo || todo.completed !== true) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    /*
+     * PERSONAL TODO
+     */
+    if (!todo.source) {
+      const originalId = String(
+        todo.originalId ?? todo.id
+      );
+
+      const originalTodo = todos.find(
+        (item) => String(item.id) === originalId
+      );
+
+      if (!originalTodo) {
+        console.error(
+          "Archive failed: personal todo was not found.",
+          originalId
+        );
+        return;
+      }
+
+      const archivedTodo = {
+        ...originalTodo,
+        id: originalId,
+        completed: true,
+        completedAt: originalTodo.completedAt || now,
+        archived: true,
+        archivedAt: now,
+        archiveDate: now,
+        archiveKey: `personal:${originalId}:`,
+        archiveSource: "personal",
+      };
+
+      const updated = todos.map((item) =>
+        String(item.id) === originalId
+          ? archivedTodo
+          : item
+      );
+
+      await persist(updated, archivedTodo);
+      return;
+    }
+
+    /*
+     * LINKED TASK
+     *
+     * Linked tasks belong to Learning, Goals, Assessments,
+     * Quick Tasks or Timetable. Their source record must stay
+     * completed, while a separate archive record is created in
+     * todoList so the source data is not damaged.
+     */
+    const archiveKey = getLinkedArchiveKey(todo);
+
+    if (!archiveKey) {
+      console.error(
+        "Archive failed: linked task has no archive key.",
+        todo
+      );
+      return;
+    }
+
+    const existing = todos.find(
+      (item) =>
+        item?.archived === true &&
+        String(item.archiveKey || "") === archiveKey
+    );
+
+    if (existing) {
+      return;
+    }
+
+    const archivedTodo = {
+      id: `archive-${todo.source}-${String(todo.sourceId)}-${String(
+        todo.date || ""
+      ).replace(/[^0-9A-Za-z_-]/g, "")}`,
+      title: todo.title || "Archived task",
+      date: todo.date || "",
+      completed: true,
+      completedAt: todo.completedAt || now,
+      archived: true,
+      archivedAt: now,
+      archiveDate: now,
+      archiveKey,
+      archiveSource: todo.source,
+      source: todo.source,
+      sourceId: todo.sourceId,
+      type: todo.type || "Task",
+      icon: todo.icon || "task",
+      skill: todo.skill || "",
+      startTime: todo.startTime || "",
+      endTime: todo.endTime || "",
+    };
+
+    await persist(
+      [...todos, archivedTodo],
+      archivedTodo
+    );
+  }
+
+  async function restoreArchivedTodo(item) {
+    if (!item) {
+      return;
+    }
+
+    /* Restore linked source task first. */
+    if (item.source) {
+      await toggleLinkedTask({
+        ...item,
+        completed: true,
+      });
+
+      const updated = todos.filter(
+        (todo) => String(todo.id) !== String(item.id)
+      );
+
+      setTodos(updated);
+
+      try {
+        await saveTodoList(updated);
+      } catch (error) {
+        console.error(
+          "Failed to remove restored linked archive locally:",
+          error
+        );
+      }
+
+      try {
+        await deleteItemFromFirestore(
+          "todoList",
+          String(item.id)
+        );
+      } catch (error) {
+        console.error(
+          "Failed to remove restored linked archive from Firestore:",
+          error
+        );
+      }
+
+      return;
+    }
+
+    const restoredTodo = {
+      ...item,
+      archived: false,
+    };
+
+    delete restoredTodo.archivedAt;
+    delete restoredTodo.archiveDate;
+    delete restoredTodo.archiveKey;
+    delete restoredTodo.archiveSource;
+
+    const updated = todos.map((todo) =>
+      String(todo.id) === String(item.id)
+        ? restoredTodo
+        : todo
+    );
+
+    await persist(updated, restoredTodo);
+  }
+
+  async function deleteArchivedTodo(item) {
+    const confirmed = window.confirm(
+      `Permanently delete "${item.title || "Archived task"}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const updated = todos.filter(
+      (todo) =>
+        String(todo.id) !== String(item.id)
+    );
+
+    setTodos(updated);
+
+    try {
+      await saveTodoList(updated);
+    } catch (error) {
+      console.error(
+        "Failed to update archived tasks locally:",
+        error
+      );
+    }
+
+    try {
+      await deleteItemFromFirestore(
+        "todoList",
+        String(item.id)
+      );
+    } catch (error) {
+      console.error(
+        "Failed to permanently delete archived task:",
+        error
+      );
+    }
+  }
+
+  const archivedTasks = useMemo(
+    () =>
+      todos
+        .filter((task) => task?.archived === true)
+        .sort((a, b) =>
+          String(b.archivedAt || "").localeCompare(
+            String(a.archivedAt || "")
+          )
+        ),
+    [todos]
+  );
 
   /*
    * ============================================================
@@ -727,7 +1293,9 @@ function TodoList() {
 
   const allTasks = useMemo(() => {
     const personal =
-      todos.map((todo) => ({
+      todos
+        .filter((todo) => todo?.archived !== true)
+        .map((todo) => ({
         ...todo,
         id: `personal-${todo.id}`,
         originalId: todo.id,
@@ -842,12 +1410,6 @@ function TodoList() {
     if (task.icon === "timetable") {
       return (
         <Clock3 size={18} />
-      );
-    }
-
-    if (task.icon === "interview") {
-      return (
-        <CalendarDays size={18} />
       );
     }
 
@@ -983,7 +1545,27 @@ function TodoList() {
                   size={17}
                 />
               </button>
+
             </>
+          )}
+
+          {task.completed && (
+            <button
+              type="button"
+              className="edit-button"
+              title="Archive completed task"
+              onClick={() => archiveTodo(task)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+                minWidth: "82px",
+              }}
+            >
+              <ArchiveIcon size={17} />
+              <span>Archive</span>
+            </button>
           )}
         </div>
       </div>
@@ -1107,13 +1689,13 @@ function TodoList() {
 
       {/* ADD / EDIT FORM */}
 
-      {showForm && (
-        <section
-          className="module-form-card"
-          style={{
-            marginTop: 20,
-          }}
-        >
+      <Modal
+        isOpen={showForm}
+        onClose={closeForm}
+        showCloseButton={false}
+        className="todo-form-modal"
+      >
+        <section className="module-form-card">
           <div className="add-topic-header">
             <h2>
               {editingTodo
@@ -1124,9 +1706,7 @@ function TodoList() {
             <button
               type="button"
               className="close-button"
-              onClick={
-                closeForm
-              }
+              onClick={closeForm}
             >
               <X size={20} />
             </button>
@@ -1134,9 +1714,7 @@ function TodoList() {
 
           <form
             className="grid-form"
-            onSubmit={
-              handleSubmit
-            }
+            onSubmit={handleSubmit}
           >
             <div className="form-group">
               <label>
@@ -1146,40 +1724,26 @@ function TodoList() {
               <input
                 type="text"
                 placeholder="Example: Clean study table"
-                value={
-                  form.title
-                }
-                onChange={(
-                  event
-                ) =>
+                value={form.title}
+                onChange={(event) =>
                   setForm({
                     ...form,
-                    title:
-                      event.target
-                        .value,
+                    title: event.target.value,
                   })
                 }
               />
             </div>
 
             <div className="form-group">
-              <label>
-                Date
-              </label>
+              <label>Date</label>
 
               <input
                 type="date"
-                value={
-                  form.date
-                }
-                onChange={(
-                  event
-                ) =>
+                value={form.date}
+                onChange={(event) =>
                   setForm({
                     ...form,
-                    date:
-                      event.target
-                        .value,
+                    date: event.target.value,
                   })
                 }
               />
@@ -1195,7 +1759,7 @@ function TodoList() {
             </button>
           </form>
         </section>
-      )}
+      </Modal>
 
       {/* TODAY */}
 
@@ -1393,6 +1957,96 @@ function TodoList() {
           )}
         </div>
       </section>
+
+
+      {/* ARCHIVE */}
+
+      <section
+        className="learning-section"
+        style={{
+          marginTop: 20,
+        }}
+      >
+        <div className="topic-header">
+          <div>
+            <h2>
+              <ArchiveIcon
+                size={20}
+                style={{
+                  verticalAlign: "middle",
+                  marginRight: "7px",
+                }}
+              />
+              Archive
+            </h2>
+
+            <p>
+              Completed personal tasks can be archived here.
+              Archived records are retained for {ARCHIVE_RETENTION_DAYS} days.
+            </p>
+          </div>
+        </div>
+
+        <div className="topic-list">
+          {archivedTasks.map((task) => {
+            const age = getArchiveAge(task);
+            const remaining = getArchiveDaysRemaining(task);
+
+            return (
+              <div
+                className="topic-row"
+                key={`archive-${task.id}`}
+              >
+                <div className="topic-information">
+                  <strong>
+                    {task.title}
+                  </strong>
+
+                  <span>
+                    <ArchiveIcon size={16} />
+                    Archived {age} day{age === 1 ? "" : "s"} ago
+                    {" • "}
+                    {remaining > 0
+                      ? `${remaining} day${remaining === 1 ? "" : "s"} remaining`
+                      : "Expires now"}
+                  </span>
+                </div>
+
+                <div className="topic-actions">
+                  <button
+                    type="button"
+                    className="edit-button"
+                    title="Restore task"
+                    onClick={() =>
+                      restoreArchivedTodo(task)
+                    }
+                  >
+                    <RotateCcw size={17} />
+                  </button>
+
+                  <button
+                    type="button"
+                    className="delete-button"
+                    title="Permanently delete archive item"
+                    onClick={() =>
+                      deleteArchivedTodo(task)
+                    }
+                  >
+                    <Trash2 size={17} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {archivedTasks.length === 0 && (
+            <p className="empty-topics">
+              Archive is empty.
+            </p>
+          )}
+        </div>
+      </section>
+
     </div>
   );
 }
