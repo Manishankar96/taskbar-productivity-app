@@ -13,6 +13,25 @@ import {
 import Modal from "../../components/common/Modal";
 
 const APPLICATIONS_UPDATED_EVENT = "taskbarApplicationsUpdated";
+const HISTORY_CATEGORY = "Career Applications";
+
+const HISTORY_STATUSES = ["Selected", "Rejected", "Withdrawn"];
+const COMPLETED_TO_HISTORY_DAYS = 2;
+const COMPLETED_TO_HISTORY_MS =
+  COMPLETED_TO_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+function isHistoryEligible(application, now = Date.now()) {
+  if (!HISTORY_STATUSES.includes(application?.status)) {
+    return false;
+  }
+
+  const timestamp = new Date(application.completedAt).getTime();
+
+  return (
+    Number.isFinite(timestamp) &&
+    now - timestamp >= COMPLETED_TO_HISTORY_MS
+  );
+}
 
 const STATUS_OPTIONS = [
   "Applied",
@@ -43,6 +62,7 @@ export default function Applications() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +72,35 @@ export default function Applications() {
         const data = await getApplications();
 
         if (!cancelled) {
-          setApplications(Array.isArray(data) ? data : []);
+          const normalized = (Array.isArray(data) ? data : []).map(
+            (application) => {
+              if (HISTORY_STATUSES.includes(application.status)) {
+                return {
+                  ...application,
+                  historyCategory:
+                    application.historyCategory || HISTORY_CATEGORY,
+                  completedAt: application.completedAt || null,
+                };
+              }
+
+              return application;
+            }
+          );
+
+          const needsMigration = normalized.some(
+            (application, index) =>
+              HISTORY_STATUSES.includes(application.status) &&
+              (
+                !data[index]?.historyCategory ||
+                !data[index]?.completedAt
+              )
+          );
+
+          if (needsMigration) {
+            await saveApplications(normalized);
+          }
+
+          setApplications(normalized);
         }
       } catch (error) {
         console.error("Failed to load applications:", error);
@@ -67,6 +115,14 @@ export default function Applications() {
   }, []);
 
   useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     window.dispatchEvent(new Event(APPLICATIONS_UPDATED_EVENT));
   }, [applications]);
 
@@ -74,6 +130,10 @@ export default function Applications() {
     const searchText = search.trim().toLowerCase();
 
     return applications
+      .filter(
+        (application) =>
+          !isHistoryEligible(application, now)
+      )
       .filter((application) => {
         if (statusFilter === "All") {
           return true;
@@ -101,29 +161,34 @@ export default function Applications() {
 
         return dateB.localeCompare(dateA);
       });
-  }, [applications, search, statusFilter]);
+  }, [applications, search, statusFilter, now]);
+
+  const activeApplications = useMemo(
+    () =>
+      applications.filter(
+        (application) =>
+          !isHistoryEligible(application, now)
+      ),
+    [applications, now]
+  );
 
   const stats = useMemo(() => {
     return {
-      total: applications.length,
+      total: activeApplications.length,
 
-      applied: applications.filter(
+      applied: activeApplications.filter(
         (item) => item.status === "Applied"
       ).length,
 
-      interview: applications.filter(
+      interview: activeApplications.filter(
         (item) => item.status === "Interview"
       ).length,
 
-      selected: applications.filter(
-        (item) => item.status === "Selected"
-      ).length,
+      selected: 0,
 
-      rejected: applications.filter(
-        (item) => item.status === "Rejected"
-      ).length,
+      rejected: 0,
     };
-  }, [applications]);
+  }, [activeApplications]);
 
   function openAddForm() {
     setForm({
@@ -161,6 +226,12 @@ export default function Applications() {
       status: form.status || "Applied",
       jobLink: form.jobLink.trim(),
       notes: form.notes.trim(),
+      ...(HISTORY_STATUSES.includes(form.status)
+        ? {
+            historyCategory: HISTORY_CATEGORY,
+            completedAt: new Date().toISOString(),
+          }
+        : {}),
       createdAt: new Date().toISOString(),
     };
 
@@ -223,6 +294,18 @@ export default function Applications() {
       status,
       updatedAt: new Date().toISOString(),
     };
+
+    if (HISTORY_STATUSES.includes(status)) {
+      updatedApplication.historyCategory = HISTORY_CATEGORY;
+      updatedApplication.completedAt =
+        HISTORY_STATUSES.includes(currentApplication.status) &&
+        currentApplication.completedAt
+          ? currentApplication.completedAt
+          : new Date().toISOString();
+    } else {
+      delete updatedApplication.historyCategory;
+      delete updatedApplication.completedAt;
+    }
 
     const updatedApplications = applications.map(
       (application) =>

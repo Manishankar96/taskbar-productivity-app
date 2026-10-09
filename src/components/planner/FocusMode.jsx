@@ -18,7 +18,10 @@ function formatTime(totalSeconds) {
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
 
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}`;
 }
 
 function normalizeTasks(tasks) {
@@ -41,7 +44,8 @@ function FocusMode({ tasks = [], onSessionComplete }) {
   const TOTAL_SECONDS = DEFAULT_MINUTES * 60;
 
   const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_SECONDS);
+  const [remainingSeconds, setRemainingSeconds] =
+    useState(TOTAL_SECONDS);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -51,18 +55,49 @@ function FocusMode({ tasks = [], onSessionComplete }) {
   const [endAt, setEndAt] = useState(null);
   const [hydrated, setHydrated] = useState(false);
 
+  const [autoSelectTask, setAutoSelectTask] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem(
+        FOCUS_MODE_STORAGE_KEY
+      );
+
+      if (!raw) {
+        return true;
+      }
+
+      const session = JSON.parse(raw);
+
+      if (
+        session &&
+        session.saved &&
+        !session.sessionStarted &&
+        !session.selectedTaskId
+      ) {
+        return false;
+      }
+
+      if (
+        session &&
+        session.manualSelection &&
+        !session.sessionStarted
+      ) {
+        return false;
+      }
+
+      return true;
+    } catch {
+      return true;
+    }
+  });
+
   /*
-   * Focus Mode is persisted in localStorage.
-   *
-   * IMPORTANT:
-   * While the timer is running, endAt is the single source of truth.
-   * We never subtract elapsed time from an already-decreased remainingSeconds.
-   * This prevents the timer from losing time twice and allows a refresh to
-   * continue from the correct point.
+   * Restore Focus Mode state.
    */
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(FOCUS_MODE_STORAGE_KEY);
+      const raw = window.localStorage.getItem(
+        FOCUS_MODE_STORAGE_KEY
+      );
 
       if (!raw) {
         setHydrated(true);
@@ -70,6 +105,57 @@ function FocusMode({ tasks = [], onSessionComplete }) {
       }
 
       const session = JSON.parse(raw);
+
+      /*
+       * Saved/cleared session:
+       * Do NOT automatically select the previous task.
+       */
+      if (
+        session &&
+        session.saved &&
+        !session.sessionStarted &&
+        !session.selectedTaskId
+      ) {
+        setSelectedTaskId("");
+        setRemainingSeconds(TOTAL_SECONDS);
+        setElapsedSeconds(0);
+        setRunning(false);
+        setFinished(false);
+        setSessionStarted(false);
+        setSaving(false);
+        setSaved(true);
+        setAutoSelectTask(false);
+        setEndAt(null);
+        setHydrated(true);
+        return;
+      }
+
+      /*
+       * Manually selected task before starting.
+       * Restore that selection after refresh.
+       */
+      if (
+        session &&
+        session.manualSelection &&
+        !session.sessionStarted
+      ) {
+        setSelectedTaskId(
+          session.selectedTaskId
+            ? String(session.selectedTaskId)
+            : ""
+        );
+        setRemainingSeconds(TOTAL_SECONDS);
+        setElapsedSeconds(0);
+        setRunning(false);
+        setFinished(false);
+        setSessionStarted(false);
+        setSaving(false);
+        setSaved(false);
+        setAutoSelectTask(false);
+        setEndAt(null);
+        setHydrated(true);
+        return;
+      }
 
       if (!session || !session.sessionStarted) {
         setHydrated(true);
@@ -94,38 +180,46 @@ function FocusMode({ tasks = [], onSessionComplete }) {
 
       setSaved(Boolean(session.saved));
       setSessionStarted(true);
+      setAutoSelectTask(false);
 
+      /*
+       * Finished session.
+       */
       if (session.finished) {
         setRemainingSeconds(0);
+
         setElapsedSeconds(
-          Math.min(TOTAL_SECONDS, savedElapsed || TOTAL_SECONDS)
+          Math.min(
+            TOTAL_SECONDS,
+            savedElapsed || TOTAL_SECONDS
+          )
         );
+
         setFinished(true);
         setRunning(false);
         setEndAt(null);
         setHydrated(true);
+
         return;
       }
 
+      /*
+       * Running session.
+       */
       if (session.running) {
-        /*
-         * New format:
-         * endAt is the exact deadline of the running session.
-         *
-         * Legacy format:
-         * If endAt is missing, preserve the currently saved remaining time
-         * and continue from there instead of resetting to 50:00.
-         */
         const restoredEndAt = Number(session.endAt);
 
         const usableEndAt =
-          Number.isFinite(restoredEndAt) && restoredEndAt > 0
+          Number.isFinite(restoredEndAt) &&
+          restoredEndAt > 0
             ? restoredEndAt
             : Date.now() + savedRemaining * 1000;
 
         const currentRemaining = Math.max(
           0,
-          Math.ceil((usableEndAt - Date.now()) / 1000)
+          Math.ceil(
+            (usableEndAt - Date.now()) / 1000
+          )
         );
 
         const currentElapsed = Math.min(
@@ -181,39 +275,57 @@ function FocusMode({ tasks = [], onSessionComplete }) {
       }
 
       /*
-       * Paused session:
-       * keep the exact remaining time.
+       * Paused session.
        */
       setRemainingSeconds(savedRemaining);
+
       setElapsedSeconds(
         Math.min(TOTAL_SECONDS, savedElapsed)
       );
+
       setFinished(false);
       setRunning(false);
       setEndAt(null);
       setHydrated(true);
     } catch (error) {
-      console.error("Failed to restore Focus Mode session:", error);
+      console.error(
+        "Failed to restore Focus Mode session:",
+        error
+      );
+
       setHydrated(true);
     }
   }, []);
 
+  /*
+   * Automatically select the first task ONLY when:
+   * - Focus Mode is hydrated
+   * - no task is selected
+   * - user has not manually cleared/selected a task
+   * - no session is running
+   */
   useEffect(() => {
     if (
+      hydrated &&
+      autoSelectTask &&
       !selectedTaskId &&
       availableTasks[0] &&
       !sessionStarted
     ) {
-      setSelectedTaskId(String(availableTasks[0].id));
+      setSelectedTaskId(
+        String(availableTasks[0].id)
+      );
     }
   }, [
+    hydrated,
     availableTasks,
     selectedTaskId,
     sessionStarted,
+    autoSelectTask,
   ]);
 
   /*
-   * Persist state after the initial restore has completed.
+   * Persist active/paused session.
    */
   useEffect(() => {
     if (
@@ -229,7 +341,9 @@ function FocusMode({ tasks = [], onSessionComplete }) {
         FOCUS_MODE_STORAGE_KEY
       );
 
-      const existing = raw ? JSON.parse(raw) : {};
+      const existing = raw
+        ? JSON.parse(raw)
+        : {};
 
       window.localStorage.setItem(
         FOCUS_MODE_STORAGE_KEY,
@@ -242,6 +356,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
           finished,
           sessionStarted,
           saved,
+          manualSelection: false,
           endAt: running ? endAt : null,
           updatedAt: Date.now(),
         })
@@ -268,9 +383,6 @@ function FocusMode({ tasks = [], onSessionComplete }) {
    * Timer.
    *
    * endAt is the source of truth while running.
-   *
-   * A refresh, delayed interval, or browser tab suspension therefore
-   * does not reset the 50-minute session.
    */
   useEffect(() => {
     if (!running || !endAt) {
@@ -280,7 +392,9 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     const tick = () => {
       const currentRemaining = Math.max(
         0,
-        Math.ceil((endAt - Date.now()) / 1000)
+        Math.ceil(
+          (endAt - Date.now()) / 1000
+        )
       );
 
       const currentElapsed = Math.min(
@@ -297,9 +411,10 @@ function FocusMode({ tasks = [], onSessionComplete }) {
         setEndAt(null);
 
         try {
-          const raw = window.localStorage.getItem(
-            FOCUS_MODE_STORAGE_KEY
-          );
+          const raw =
+            window.localStorage.getItem(
+              FOCUS_MODE_STORAGE_KEY
+            );
 
           const existing = raw
             ? JSON.parse(raw)
@@ -314,6 +429,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
               running: false,
               finished: true,
               sessionStarted: true,
+              manualSelection: false,
               endAt: null,
               updatedAt: Date.now(),
             })
@@ -359,6 +475,9 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     )
   );
 
+  /*
+   * Start / Resume
+   */
   function handleStart() {
     if (!selectedTask || finished) {
       return;
@@ -366,14 +485,6 @@ function FocusMode({ tasks = [], onSessionComplete }) {
 
     const now = Date.now();
 
-    /*
-     * IMPORTANT:
-     * Start/resume from the current remaining time.
-     *
-     * Example:
-     * 50:00 -> pause at 43:20
-     * Resume -> endAt is now + 43:20
-     */
     const newEndAt =
       now + remainingSeconds * 1000;
 
@@ -381,11 +492,13 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     setSaved(false);
     setRunning(true);
     setEndAt(newEndAt);
+    setAutoSelectTask(false);
 
     try {
-      const raw = window.localStorage.getItem(
-        FOCUS_MODE_STORAGE_KEY
-      );
+      const raw =
+        window.localStorage.getItem(
+          FOCUS_MODE_STORAGE_KEY
+        );
 
       const existing = raw
         ? JSON.parse(raw)
@@ -404,6 +517,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
           finished: false,
           sessionStarted: true,
           saved: false,
+          manualSelection: false,
           endAt: newEndAt,
           updatedAt: now,
         })
@@ -416,6 +530,9 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     }
   }
 
+  /*
+   * Pause
+   */
   function handlePause() {
     if (!running || !endAt) {
       return;
@@ -439,9 +556,10 @@ function FocusMode({ tasks = [], onSessionComplete }) {
       setRunning(false);
       setEndAt(null);
 
-      const raw = window.localStorage.getItem(
-        FOCUS_MODE_STORAGE_KEY
-      );
+      const raw =
+        window.localStorage.getItem(
+          FOCUS_MODE_STORAGE_KEY
+        );
 
       const existing = raw
         ? JSON.parse(raw)
@@ -458,6 +576,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
           finished: currentRemaining <= 0,
           sessionStarted: true,
           saved: false,
+          manualSelection: false,
           endAt: null,
           pausedAt: Date.now(),
           updatedAt: Date.now(),
@@ -478,6 +597,12 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     }
   }
 
+  /*
+   * Reset timer.
+   *
+   * IMPORTANT:
+   * Reset must NOT enable automatic first-task selection.
+   */
   function handleReset() {
     setRunning(false);
     setRemainingSeconds(TOTAL_SECONDS);
@@ -486,6 +611,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     setSessionStarted(false);
     setSaving(false);
     setSaved(false);
+    setAutoSelectTask(false);
     setEndAt(null);
 
     try {
@@ -500,6 +626,78 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     }
   }
 
+  /*
+   * Manual task selection.
+   */
+  function handleTaskChange(event) {
+    const newTaskId = event.target.value;
+
+    setSelectedTaskId(newTaskId);
+    setRunning(false);
+    setRemainingSeconds(TOTAL_SECONDS);
+    setElapsedSeconds(0);
+    setFinished(false);
+    setSessionStarted(false);
+    setSaving(false);
+    setSaved(false);
+    setEndAt(null);
+
+    /*
+     * IMPORTANT:
+     * User selected manually.
+     * Never auto-select the first task afterwards.
+     */
+    setAutoSelectTask(false);
+
+    try {
+      if (newTaskId) {
+        window.localStorage.setItem(
+          FOCUS_MODE_STORAGE_KEY,
+          JSON.stringify({
+            selectedTaskId: String(newTaskId),
+            remainingSeconds: TOTAL_SECONDS,
+            elapsedSeconds: 0,
+            running: false,
+            finished: false,
+            sessionStarted: false,
+            saved: false,
+            manualSelection: true,
+            endAt: null,
+            updatedAt: Date.now(),
+          })
+        );
+      } else {
+        /*
+         * User intentionally selected
+         * "Select a study..."
+         */
+        window.localStorage.setItem(
+          FOCUS_MODE_STORAGE_KEY,
+          JSON.stringify({
+            selectedTaskId: "",
+            remainingSeconds: TOTAL_SECONDS,
+            elapsedSeconds: 0,
+            running: false,
+            finished: false,
+            sessionStarted: false,
+            saved: false,
+            manualSelection: true,
+            endAt: null,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Failed to persist selected Focus task:",
+        error
+      );
+    }
+  }
+
+  /*
+   * Save Study Session.
+   */
   async function handleSaveSession() {
     if (
       !selectedTask ||
@@ -531,39 +729,44 @@ function FocusMode({ tasks = [], onSessionComplete }) {
         });
       }
 
-      setSaved(true);
-
+      /*
+       * Study Session successfully saved.
+       *
+       * Clear Focus Mode selection so the completed
+       * task cannot return after refresh.
+       */
       try {
-        const raw =
-          window.localStorage.getItem(
-            FOCUS_MODE_STORAGE_KEY
-          );
-
-        const existing = raw
-          ? JSON.parse(raw)
-          : {};
-
         window.localStorage.setItem(
           FOCUS_MODE_STORAGE_KEY,
           JSON.stringify({
-            ...existing,
-            selectedTaskId,
-            remainingSeconds,
-            elapsedSeconds,
+            selectedTaskId: "",
+            remainingSeconds: TOTAL_SECONDS,
+            elapsedSeconds: 0,
             running: false,
-            finished,
-            sessionStarted: true,
+            finished: false,
+            sessionStarted: false,
             saved: true,
+            manualSelection: true,
             endAt: null,
             updatedAt: Date.now(),
           })
         );
       } catch (error) {
         console.error(
-          "Failed to update saved Focus Mode state:",
+          "Failed to clear Focus Mode state:",
           error
         );
       }
+
+      setSaved(true);
+      setRunning(false);
+      setFinished(false);
+      setSessionStarted(false);
+      setRemainingSeconds(TOTAL_SECONDS);
+      setElapsedSeconds(0);
+      setSelectedTaskId("");
+      setAutoSelectTask(false);
+      setEndAt(null);
     } catch (error) {
       console.error(
         "Failed to save Focus Mode session:",
@@ -574,15 +777,19 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     }
   }
 
+  /*
+   * Close Focus Mode.
+   */
   function handleCloseFocus() {
     setRunning(false);
     setFinished(true);
     setEndAt(null);
 
     try {
-      const raw = window.localStorage.getItem(
-        FOCUS_MODE_STORAGE_KEY
-      );
+      const raw =
+        window.localStorage.getItem(
+          FOCUS_MODE_STORAGE_KEY
+        );
 
       const existing = raw
         ? JSON.parse(raw)
@@ -599,6 +806,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
           finished: true,
           sessionStarted: true,
           saved,
+          manualSelection: false,
           endAt: null,
           updatedAt: Date.now(),
         })
@@ -611,6 +819,9 @@ function FocusMode({ tasks = [], onSessionComplete }) {
     }
   }
 
+  /*
+   * No unfinished tasks.
+   */
   if (availableTasks.length === 0) {
     return (
       <section
@@ -746,13 +957,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
             <select
               value={selectedTaskId}
               disabled={sessionStarted}
-              onChange={(event) => {
-                setSelectedTaskId(
-                  event.target.value
-                );
-
-                handleReset();
-              }}
+              onChange={handleTaskChange}
               style={{
                 width: "100%",
                 minHeight: "44px",
@@ -765,6 +970,10 @@ function FocusMode({ tasks = [], onSessionComplete }) {
                 color: "inherit",
               }}
             >
+              <option value="">
+                Select a study...
+              </option>
+
               {availableTasks.map((task) => (
                 <option
                   key={task.id}
@@ -856,6 +1065,7 @@ function FocusMode({ tasks = [], onSessionComplete }) {
                 type="button"
                 onClick={handleStart}
                 className="add-topic-button"
+                disabled={!selectedTask}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",

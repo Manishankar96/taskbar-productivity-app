@@ -26,13 +26,16 @@ import {
   getWater,
   getStudySessions,
   getActivities,
-  getQuickTasks,
   getTodoList,
-  getTimetable,
   getAssessments,
   getStreak,
   getDailyReports,
   ensureDailyReportHistory,
+  deleteItem,
+  getApplications,
+  getInterviews,
+  deleteApplication,
+  deleteInterview,
 } from "../../utils/db";
 
 import {
@@ -323,9 +326,7 @@ function Reports() {
   const [water, setWater] = useState([]);
   const [studySessions, setStudySessions] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [quickTasks, setQuickTasks] = useState([]);
   const [todoList, setTodoList] = useState([]);
-  const [timetable, setTimetable] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [incomeList, setIncomeList] = useState([]);
   const [expenseList, setExpenseList] = useState([]);
@@ -347,10 +348,154 @@ function Reports() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [tab, setTab] = useState("Daily");
-  const [selectedHistoryDate, setSelectedHistoryDate] =
-    useState(null);
+  const HISTORY_CATEGORIES = [
+    "Learning",
+    "Goals",
+    "Tasks",
+    "Assessments",
+    "Study Sessions",
+    "Activities",
+    "Career Applications",
+  ];
+
+  const [selectedHistoryCategory, setSelectedHistoryCategory] =
+    useState("Learning");
+
+  const [historyViewMode, setHistoryViewMode] = useState("category");
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState(getToday());
 
   const [today, setToday] = useState(getToday());
+  const [historyClock, setHistoryClock] = useState(Date.now());
+
+  /* =======================================================
+     HISTORY RETENTION
+
+     Completed items stay in History for 50 days from their
+     original completion timestamp. After 50 full days the
+     original Firestore document is permanently deleted.
+
+     This cleanup runs while the app is open. It also runs when
+     Reports loads, so expired records are removed on the next
+     app/session open even if the app was closed at the exact
+     50-day boundary.
+  ======================================================= */
+
+  const HISTORY_DELAY_DAYS = 2;
+  const HISTORY_RETENTION_DAYS = 50;
+  const HISTORY_RETENTION_MS =
+    HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+
+  function getCompletionTimestampForCleanup(item) {
+    const value = item?.completedAtTimestamp || item?.completedAt;
+    if (!value) return null;
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.getTime();
+  }
+
+  async function cleanupExpiredHistory() {
+    const cutoff = Date.now() - HISTORY_RETENTION_MS;
+
+    const [
+      topicData,
+      goalData,
+      todoData,
+      assessmentData,
+      studyData,
+      activityData,
+      applicationData,
+      interviewData,
+    ] = await Promise.all([
+      getTopics(),
+      getGoals(),
+      getTodoList(),
+      getAssessments(),
+      getStudySessions(),
+      getActivities(),
+      getApplications(),
+      getInterviews(),
+    ]);
+
+    const cleanupJobs = [];
+
+    const addExpiredJobs = (items, storeName, deleteFn = null) => {
+      if (!Array.isArray(items)) return;
+
+      items.forEach((item) => {
+        const completedTime = getCompletionTimestampForCleanup(item);
+        if (completedTime === null || completedTime > cutoff) return;
+
+        const id = String(item?.id ?? "").trim();
+        if (!id) return;
+
+        cleanupJobs.push(
+          (deleteFn ? deleteFn(id) : deleteItem(storeName, id))
+            .catch((error) => {
+              console.error(
+                `History cleanup failed for ${storeName}/${id}:`,
+                error
+              );
+            })
+        );
+      });
+    };
+
+    addExpiredJobs(topicData, "topics");
+    addExpiredJobs(goalData, "goals");
+    addExpiredJobs(todoData, "todoList");
+    addExpiredJobs(assessmentData, "assessments");
+    addExpiredJobs(studyData, "studySessions");
+    addExpiredJobs(activityData, "activities");
+    addExpiredJobs(applicationData, "applications", deleteApplication);
+    addExpiredJobs(interviewData, "interviews", deleteInterview);
+
+    if (cleanupJobs.length > 0) {
+      await Promise.all(cleanupJobs);
+    }
+  }
+
+
+  /* =======================================================
+     REFRESH THE 2-DAY HISTORY BOUNDARY
+  ======================================================= */
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHistoryClock(Date.now());
+    }, 60 * 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+
+  /* =======================================================
+     AUTOMATIC 50-DAY CLEANUP
+  ======================================================= */
+
+  useEffect(() => {
+    let mounted = true;
+
+    const runCleanup = async () => {
+      try {
+        await cleanupExpiredHistory();
+        if (mounted) {
+          setHistoryClock(Date.now());
+        }
+      } catch (error) {
+        console.error("Automatic 50-day History cleanup error:", error);
+      }
+    };
+
+    runCleanup();
+    const timer = setInterval(runCleanup, 5 * 60 * 1000);
+
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
 
   /* =======================================================
@@ -392,9 +537,7 @@ function Reports() {
         waterData,
         studyData,
         activityData,
-        taskData,
         personalTodoData,
-        timetableData,
         assessmentData,
         streakData,
         reportData,
@@ -410,18 +553,16 @@ function Reports() {
         getWater(),
         getStudySessions(),
         getActivities(),
-        getQuickTasks(),
         getTodoList(),
-        getTimetable(),
         getAssessments(),
         getStreak(),
         getDailyReports(),
         getItemsFromFirestore("income"),
         getItemsFromFirestore("expenses"),
         getItemsFromFirestore("jobPreparation"),
-        getItemsFromFirestore("applications"),
+        getApplications(),
         getItemsFromFirestore("savedJobs"),
-        getItemsFromFirestore("interviews"),
+        getInterviews(),
       ]);
 
       setTopics(
@@ -444,16 +585,8 @@ function Reports() {
         Array.isArray(activityData) ? activityData : []
       );
 
-      setQuickTasks(
-        Array.isArray(taskData) ? taskData : []
-      );
-
       setTodoList(
         Array.isArray(personalTodoData) ? personalTodoData : []
-      );
-
-      setTimetable(
-        Array.isArray(timetableData) ? timetableData : []
       );
 
       setAssessments(
@@ -673,10 +806,7 @@ function Reports() {
       ).length;
 
     /*
-      Daily Tasks must use the same task sources as the
-      Weekly report.  The previous version checked only
-      quickTasks, so tasks stored in the central To-Do list
-      could incorrectly show as 0.
+      Daily Tasks use the Central To-Do list.
     */
     const dailyTaskMap = new Map();
 
@@ -688,22 +818,6 @@ function Reports() {
       if (taskDate !== today) return;
 
       const id = `todo-${String(task?.id ?? task?.title ?? Math.random())}`;
-
-      dailyTaskMap.set(id, {
-        ...task,
-        date: taskDate,
-        completed: isCompleted(task),
-      });
-    });
-
-    quickTasks.forEach((task) => {
-      const taskDate = normalizeDateKey(
-        task?.dueDate ?? task?.date
-      );
-
-      if (taskDate !== today) return;
-
-      const id = `quick-${String(task?.id ?? task?.title ?? Math.random())}`;
 
       dailyTaskMap.set(id, {
         ...task,
@@ -811,7 +925,6 @@ function Reports() {
     water,
     studySessions,
     activities,
-    quickTasks,
     todoList,
   ]);
 
@@ -830,10 +943,6 @@ function Reports() {
 
       learning: {
         completed: daily.learningCompleted,
-      },
-
-      quickTasks: {
-        completed: daily.tasksCompleted,
       },
 
       summary: {
@@ -869,226 +978,248 @@ function Reports() {
 
 
   /* =======================================================
-     HISTORY DISPLAY
+     TASKBAR HISTORY
 
-     IMPORTANT:
-     - Today is ALWAYS represented by live data.
-     - Previous days come from saved dailyReports.
-     - If an old today record exists, it is replaced by the
-       live today record so it cannot show stale 0%.
-======================================================= */
+     Single History rule:
+     - An item becomes completed in its original section.
+     - It stays there for a full 2 days.
+     - After 2 full days it appears in Reports -> History.
+     - It is permanently deleted 50 days after completion.
 
-  const historyReports = useMemo(() => {
-    const previousReports =
-      Array.isArray(dailyReports)
-        ? dailyReports.filter(
-            (report) =>
-              report?.date !== today
-          )
-        : [];
+     Applications and Interviews are both included.
+  ======================================================= */
 
-    return [
-      todayLiveReport,
-      ...previousReports,
-    ].sort((a, b) =>
-      String(b.date).localeCompare(
-        String(a.date)
-      )
-    );
-  }, [
-    dailyReports,
-    today,
-    todayLiveReport,
-  ]);
+  const HISTORY_DELAY_MS = HISTORY_DELAY_DAYS * 24 * 60 * 60 * 1000;
 
+  function getHistoryCompletedAt(item) {
+    return item?.completedAt || item?.completedAtTimestamp || null;
+  }
 
-  /* =======================================================
-     SELECTED HISTORY DATE
-======================================================= */
+  function isHistoryEligible(item) {
+    const completedAt = getHistoryCompletedAt(item);
+    if (!completedAt) return false;
 
-  useEffect(() => {
-    if (historyReports.length === 0) {
-      setSelectedHistoryDate(null);
-      return;
+    const completedDate = new Date(completedAt);
+    if (Number.isNaN(completedDate.getTime())) return false;
+
+    return historyClock - completedDate.getTime() >= HISTORY_DELAY_MS;
+  }
+
+  function isCompletedForHistory(item, category) {
+    // A real completion timestamp is the strongest signal because the
+    // 2-day countdown must start from the exact completion moment.
+    if (item?.completedAt || item?.completedAtTimestamp) return true;
+
+    if (category === "Career Applications") {
+      return Boolean(
+        isCompleted(item) ||
+        item?.followUpCompleted === true ||
+        [
+          "Completed",
+          "Passed",
+          "Failed",
+          "Cancelled",
+          "Selected",
+          "Rejected",
+          "Withdrawn",
+        ].includes(item?.status)
+      );
     }
 
-    setSelectedHistoryDate((oldDate) => {
+    return isCompleted(item);
+  }
+
+  function isHistoryItem(item, category) {
+    if (!isCompletedForHistory(item, category)) return false;
+    if (!isHistoryEligible(item)) return false;
+
+    // Prefer the explicit historyCategory written by the source page.
+    if (item?.historyCategory) {
+      if (item.historyCategory === category) return true;
+
+      // Backward compatibility for old records that used separate
+      // Applications / Interviews categories.
       if (
-        oldDate &&
-        historyReports.some(
-          (report) =>
-            report.date === oldDate
-        )
+        category === "Career Applications" &&
+        ["Applications", "Interviews"].includes(item.historyCategory)
       ) {
-        return oldDate;
+        return true;
       }
 
-      return historyReports[0].date;
-    });
-  }, [historyReports]);
-
-
-  /* =======================================================
-     SELECTED HISTORY REPORT
-======================================================= */
-
-  const selectedReport = useMemo(() => {
-    if (!selectedHistoryDate) {
-      return null;
+      return false;
     }
 
-    return (
-      historyReports.find(
-        (report) =>
-          report.date ===
-          selectedHistoryDate
-      ) || null
-    );
-  }, [
-    historyReports,
-    selectedHistoryDate,
-  ]);
+    // Older records may have no historyCategory. Completion + the
+    // correct source collection is enough to place them into History.
+    return true;
+  }
 
-
-  /* =======================================================
-     HISTORY HELPERS
-
-     Today's values come from current live data.
-     Previous dates come from stored report + raw data.
-======================================================= */
-
-  const selectedHistoryValues = useMemo(() => {
-    if (!selectedReport) {
-      return {
-        topics: 0,
-        tasks: 0,
-        goal: 0,
-        study: 0,
-        screen: 0,
-        water: 0,
-        activity: 0,
-        productivity: 0,
-      };
-    }
-
-    const date = selectedReport.date;
-    const isToday = date === today;
-
-    if (isToday) {
-      return {
-        topics:
-          daily.learningCompleted,
-        tasks:
-          daily.tasksCompleted,
-        goal:
-          daily.avgGoal,
-        study:
-          daily.studyMinutes,
-        screen:
-          daily.screenMinutes,
-        water:
-          daily.waterToday,
-        activity:
-          daily.activityMinutes,
-        productivity:
-          daily.productivityScore,
-      };
-    }
-
-    const storedTopics =
-      safeNumber(
-        selectedReport.summary
-          ?.topicsCompleted ??
-          selectedReport.topicsCompleted ??
-          selectedReport.learning?.completed
-      );
-
-    const storedTasks =
-      safeNumber(
-        selectedReport.summary
-          ?.tasksCompleted ??
-          selectedReport.tasksCompleted ??
-          selectedReport.quickTasks?.completed
-      );
-
-    const storedGoal =
-      safeNumber(
-        selectedReport.summary
-          ?.avgGoalProgress ??
-          selectedReport.avgGoalProgress ??
-          selectedReport.goalProgress
-      );
-
-    const study =
-      getStudyMinutesForDate(
-        studySessions,
-        date
-      );
-
-    const storedStudy =
-      safeNumber(
-        selectedReport.summary
-          ?.studyMinutes ??
-          selectedReport.studyMinutes
-      );
-
-    const waterValue =
-      getWaterForDate(
-        water,
-        date
-      );
-
-    const storedWater =
-      safeNumber(
-        selectedReport.summary
-          ?.waterConsumed ??
-          selectedReport.waterConsumed ??
-          selectedReport.water?.consumedMl
-      );
-
-    const activity =
-      sumField(
-        activities.filter(
-          (item) => item?.date === date
-        ),
-        ["duration", "minutes", "time"]
-      );
-
-    const storedActivity =
-      safeNumber(
-        selectedReport.summary
-          ?.activityMinutes ??
-          selectedReport.activityMinutes
-      );
-
+  const historyItemsByCategory = useMemo(() => {
     return {
-      topics: storedTopics,
-      tasks: storedTasks,
-      goal: storedGoal,
-      study: study > 0 ? study : storedStudy,
-      water: waterValue > 0
-        ? waterValue
-        : storedWater,
-      activity:
-        activity > 0
-          ? activity
-          : storedActivity,
-      productivity:
-        safeNumber(
-          selectedReport.summary
-            ?.productivityScore ??
-            selectedReport.productivityScore
-        ),
+      Learning: topics.filter((item) => isHistoryItem(item, "Learning")),
+      Goals: goals.filter((item) => isHistoryItem(item, "Goals")),
+      Tasks: todoList.filter((item) => isHistoryItem(item, "Tasks")),
+      Assessments: assessments.filter((item) => isHistoryItem(item, "Assessments")),
+      "Study Sessions": studySessions.filter((item) =>
+        isHistoryItem(item, "Study Sessions")
+      ),
+      Activities: activities.filter((item) =>
+        isHistoryItem(item, "Activities")
+      ),
+      "Career Applications": [
+        ...applicationsList
+          .filter((item) => isHistoryItem(item, "Career Applications"))
+          .map((item) => ({
+            ...item,
+            historyType: "Application",
+          })),
+        ...interviewsList
+          .filter((item) => isHistoryItem(item, "Career Applications"))
+          .map((item) => ({
+            ...item,
+            historyType: "Interview",
+          })),
+      ],
     };
   }, [
-    selectedReport,
-    today,
-    daily,
-    water,
+    topics,
+    goals,
+    todoList,
+    assessments,
     studySessions,
     activities,
+    applicationsList,
+    interviewsList,
+    historyClock,
   ]);
 
+  const selectedHistoryItems =
+    historyItemsByCategory[selectedHistoryCategory] || [];
+
+  const HISTORY_META = {
+    Learning: { icon: "📚" },
+    Goals: { icon: "🎯" },
+    Tasks: { icon: "✅" },
+    Assessments: { icon: "📝" },
+    "Study Sessions": { icon: "⏱️" },
+    Activities: { icon: "🏃" },
+    "Career Applications": { icon: "💼" },
+  };
+
+  function getHistoryCategoryIcon(category) {
+    return HISTORY_META[category]?.icon || "📌";
+  }
+
+  function getHistoryTitle(item, category) {
+    if (item?.historyType === "Interview") return item?.role || item?.title || "Interview";
+    if (item?.historyType === "Application") return item?.role || item?.title || "Job Application";
+    return item?.title || item?.name || item?.topic || item?.activity || item?.task || item?.goalTitle || item?.assessmentTitle || item?.subject || item?.role || item?.company || `${category} item`;
+  }
+
+  function getHistoryCompletedDate(item) {
+    const value = getHistoryCompletedAt(item);
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function getHistoryDateKey(item) {
+    const date = getHistoryCompletedDate(item);
+    if (date) return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+    return normalizeDateKey(item?.date || item?.dueDate || item?.completedAt);
+  }
+
+  function formatHistoryDate(dateKey) {
+    if (!dateKey) return "Date not set";
+    return new Date(`${dateKey}T00:00:00`).toLocaleDateString("en-IN", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+  }
+
+  function formatHistoryTime(item) {
+    const date = getHistoryCompletedDate(item);
+    return date ? date.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" }) : "";
+  }
+
+  function getHistoryRelativeText(item) {
+    const date = getHistoryCompletedDate(item);
+    if (!date) return "Completed";
+    const now = new Date();
+    const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const b = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diff = Math.round((a-b)/(24*60*60*1000));
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    if (diff > 1) return `${diff} days ago`;
+    return "Completed";
+  }
+
+  function getHistorySubtitle(item, category) {
+    if (item?.historyType === "Interview") return `Interview • ${item?.status || "Completed"}`;
+    if (item?.historyType === "Application") return `Application • ${item?.status || "Completed"}`;
+    if (category === "Learning") return item?.skill || item?.status || "Learning topic";
+    if (category === "Goals") return item?.skill || item?.status || "Goal";
+    if (category === "Tasks") return item?.type || item?.source || (item?.goalTitle ? `Goal task • ${item.goalTitle}` : item?.topic ? `Learning task • ${item.topic}` : "Task");
+    if (category === "Assessments") return item?.status || item?.type || "Assessment";
+    if (category === "Study Sessions") return item?.topic || item?.subject || item?.skill || "Study session";
+    if (category === "Activities") return item?.type || item?.category || "Activity";
+    return category;
+  }
+
+  function getHistoryDetails(item, category) {
+    const details=[];
+    if (category === "Learning") { if (item?.skill) details.push(`Skill: ${item.skill}`); if (item?.timeSpent !== undefined) details.push(`Time spent: ${item.timeSpent}`); }
+    if (category === "Goals") { if (item?.skill) details.push(`Skill: ${item.skill}`); if (item?.targetDate) details.push(`Target: ${item.targetDate}`); }
+    if (category === "Tasks") { if (item?.goalTitle) details.push(`Goal: ${item.goalTitle}`); if (item?.topic) details.push(`Learning: ${item.topic}`); if (item?.date || item?.dueDate) details.push(`Task date: ${item.date || item.dueDate}`); }
+    if (category === "Assessments") { if (item?.score !== undefined) details.push(`Score: ${item.score}`); if (item?.result) details.push(`Result: ${item.result}`); if (item?.date) details.push(`Assessment date: ${item.date}`); }
+    if (category === "Study Sessions") { const m=item?.actualMinutes ?? item?.durationMinutes ?? item?.duration ?? item?.minutes; if (m !== undefined) details.push(`Duration: ${m} min`); if (item?.skill) details.push(`Skill: ${item.skill}`); if (item?.notes) details.push(`Notes: ${item.notes}`); }
+    if (category === "Activities") { const d=item?.duration ?? item?.minutes ?? item?.time; if (d !== undefined) details.push(`Duration: ${d} min`); if (item?.type) details.push(`Type: ${item.type}`); if (item?.notes) details.push(`Notes: ${item.notes}`); }
+    if (category === "Career Applications") {
+      if (item?.company) details.push(`Company: ${item.company}`);
+      if (item?.role) details.push(`Role: ${item.role}`);
+      if (item?.status) details.push(`Status: ${item.status}`);
+      if (item?.historyType === "Interview" && item?.date) details.push(`Interview date: ${item.date}`);
+      if (item?.historyType === "Application" && item?.date) details.push(`Application date: ${item.date}`);
+    }
+    return details;
+  }
+
+  const availableHistoryDates = useMemo(() => {
+    const dates = new Set();
+    Object.entries(historyItemsByCategory).forEach(([category, items]) => {
+      items.forEach((item) => {
+        const date = getHistoryDateKey(item);
+        if (date) dates.add(date);
+      });
+    });
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [historyItemsByCategory]);
+
+  useEffect(() => {
+    if (!selectedHistoryDate && availableHistoryDates.length > 0) {
+      setSelectedHistoryDate(availableHistoryDates[0]);
+    }
+  }, [availableHistoryDates, selectedHistoryDate]);
+
+  const selectedDayWiseItems = useMemo(() => {
+    const rows = [];
+    Object.entries(historyItemsByCategory).forEach(([category, items]) => {
+      items.forEach((item) => {
+        if (getHistoryDateKey(item) === selectedHistoryDate) {
+          rows.push({ ...item, historyCategory: category });
+        }
+      });
+    });
+    return rows.sort(
+      (a, b) =>
+        (getHistoryCompletedDate(b)?.getTime() || 0) -
+        (getHistoryCompletedDate(a)?.getTime() || 0)
+    );
+  }, [historyItemsByCategory, selectedHistoryDate]);
+
+  useEffect(() => {
+    if (!HISTORY_CATEGORIES.includes(selectedHistoryCategory)) {
+      setSelectedHistoryCategory("Learning");
+    }
+  }, [selectedHistoryCategory]);
 
   /* =======================================================
      GOALS + CENTRAL TO-DO INSIGHTS
@@ -1162,33 +1293,6 @@ function Reports() {
       .toLocaleDateString("en-IN", { weekday: "long" })
       .toLowerCase();
     const todayShort = weekday(today).toLowerCase();
-
-    timetable.forEach((item) => {
-      const itemDay = String(
-        item?.day ?? item?.weekday ?? item?.weekDay ?? ""
-      ).toLowerCase();
-
-      if (itemDay === todayLong || itemDay === todayShort) {
-        addTask({
-          id: `timetable-${item?.id}`,
-          title: item?.title ?? item?.subject ?? item?.name ?? "Timetable task",
-          date: today,
-          completed: false,
-        });
-      }
-    });
-
-    quickTasks.forEach((task) => {
-      const date = task?.dueDate ?? task?.date;
-      if (date) {
-        addTask({
-          id: `quick-task-${task?.id}`,
-          title: task?.title ?? task?.text ?? task?.name ?? "Quick task",
-          date,
-          completed: isCompleted(task),
-        });
-      }
-    });
 
     const preparationTasks = Array.isArray(jobPreparationData?.tasks)
       ? jobPreparationData.tasks
@@ -1270,8 +1374,6 @@ function Reports() {
     todoList,
     topics,
     assessments,
-    timetable,
-    quickTasks,
     jobPreparationData,
     applicationsList,
     savedJobsList,
@@ -1535,8 +1637,6 @@ function Reports() {
    * such as 2026-09-21, so completed tasks were missed.
    *
    * We normalize both values to the same local date key.
-   * Quick Tasks are used as a fallback only when the
-   * Central To-Do list has no matching task records.
    */
   const weeklyTasks = useMemo(() => {
     const centralCompletedTasks = todoList.filter((task) => {
@@ -1557,28 +1657,8 @@ function Reports() {
       );
     });
 
-    if (centralCompletedTasks.length > 0) {
-      return centralCompletedTasks.length;
-    }
-
-    return quickTasks.filter((task) => {
-      const completedDate = normalizeDateKey(
-        task?.completedAt
-      );
-
-      const taskDate = normalizeDateKey(
-        task?.date ?? task?.dueDate
-      );
-
-      const taskDateForReport =
-        completedDate || taskDate;
-
-      return (
-        weekDates.includes(taskDateForReport) &&
-        isCompleted(task)
-      );
-    }).length;
-  }, [todoList, quickTasks, weekDates]);
+    return centralCompletedTasks.length;
+  }, [todoList, weekDates]);
 
 
   /* =======================================================
@@ -2746,311 +2826,108 @@ function Reports() {
 
       {tab === "History" && (
         <section className="reports-history">
-
           <div className="report-panel">
-
-            <div className="section-heading">
-
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:"16px",flexWrap:"wrap"}}>
               <div>
-                <h2>
-                  🗂️ Report History
-                </h2>
-
-                <p>
-                  View your previous daily
-                  reports.
-                </p>
+                <h2 style={{margin:0}}>🗂️ History</h2>
+                <p style={{margin:"8px 0 0",color:"#64748b"}}>Completed items stay in their original Completed section for 2 full days, then appear here. History is permanently cleaned up 50 days after the original completion time.</p>
               </div>
-
-              <History size={28} />
-
+              <button type="button" onClick={()=>setHistoryViewMode(m=>m==="category"?"daywise":"category")} style={{display:"inline-flex",alignItems:"center",gap:"8px",padding:"11px 16px",borderRadius:"12px",border:"1px solid #475569",background:historyViewMode==="daywise"?"#2563eb":"rgba(255,255,255,.04)",color:"#fff",fontWeight:700,cursor:"pointer"}}>
+                📅 {historyViewMode === "daywise" ? "Category View" : "Day Wise"}
+              </button>
             </div>
 
-
-            {historyReports.length === 0 ? (
-
-              <div className="empty-state">
-
-                <History size={42} />
-
-                <h3>
-                  No reports yet
-                </h3>
-
-                <p>
-                  Your daily reports will
-                  appear here automatically.
-                </p>
-
-              </div>
-
-            ) : (
-
-              <div className="history-layout">
-
-                {/* HISTORY LIST */}
-
-                <div className="history-list">
-
-                  {historyReports.map(
-                    (report) => {
-
-                      const reportIsToday =
-                        report.date === today;
-
-                      const reportScore =
-                        reportIsToday
-                          ? daily.productivityScore
-                          : safeNumber(
-                              report.summary
-                                ?.productivityScore ??
-                                report.productivityScore
-                            );
-
-                      const reportTopics =
-                        reportIsToday
-                          ? daily.learningCompleted
-                          : safeNumber(
-                              report.summary
-                                ?.topicsCompleted ??
-                                report.topicsCompleted ??
-                                report.learning
-                                  ?.completed
-                            );
-
-                      return (
-                        <button
-                          key={
-                            report.id ??
-                            report.date
-                          }
-                          type="button"
-                          onClick={() =>
-                            setSelectedHistoryDate(
-                              report.date
-                            )
-                          }
-                          className={
-                            selectedHistoryDate ===
-                            report.date
-                              ? "history-item active"
-                              : "history-item"
-                          }
-                        >
-
-                          <div>
-
-                            <strong>
-                              {formatDate(
-                                report.date
-                              )}
-                            </strong>
-
-                            <span>
-                              {reportTopics}{" "}
-                              topics completed
-                            </span>
-
-                          </div>
-
-
-                          <div>
-
-                            <strong>
-                              {reportScore}%
-                            </strong>
-
-                          </div>
-
-                        </button>
-                      );
-                    }
-                  )}
-
+            {historyViewMode === "category" ? (
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"12px",marginTop:"24px"}}>
+                  {HISTORY_CATEGORIES.map(category=>{
+                    const count=historyItemsByCategory[category]?.length||0;
+                    const active=selectedHistoryCategory===category;
+                    return <button key={category} type="button" onClick={()=>setSelectedHistoryCategory(category)} style={{minHeight:"105px",padding:"16px",borderRadius:"16px",border:active?"1px solid #2563eb":"1px solid rgba(148,163,184,.35)",background:active?"rgba(37,99,235,.18)":"rgba(255,255,255,.03)",color:"#fff",textAlign:"left",cursor:"pointer",boxShadow:active?"0 8px 25px rgba(37,99,235,.18)":"none"}}>
+                      <div style={{fontSize:"25px"}}>{getHistoryCategoryIcon(category)}</div>
+                      <div style={{marginTop:"8px",fontWeight:800}}>{category}</div>
+                      <div style={{marginTop:"4px",color:"#94a3b8",fontSize:"13px"}}>{count} completed</div>
+                    </button>;
+                  })}
                 </div>
 
-
-                {/* HISTORY DETAIL */}
-
-                <div className="history-detail">
-
-                  {!selectedReport ? (
-
-                    <div className="empty-state">
-
-                      <History size={38} />
-
-                      <h3>
-                        Select a report
-                      </h3>
-
-                      <p>
-                        Choose a date from
-                        the history list.
-                      </p>
-
+                {selectedHistoryItems.length === 0 ? <div className="empty-state" style={{marginTop:"24px"}}><div style={{fontSize:"42px"}}>{getHistoryCategoryIcon(selectedHistoryCategory)}</div><h3>No {selectedHistoryCategory} history</h3><p>Completed items will appear here automatically.</p></div> :
+                  <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.6fr) minmax(260px,.8fr)",gap:"20px",marginTop:"24px"}}>
+                    <div style={{display:"grid",gap:"12px"}}>
+                      {selectedHistoryItems.map(item=>{
+                        const date=getHistoryCompletedDate(item), details=getHistoryDetails(item,selectedHistoryCategory);
+                        return <article key={`${selectedHistoryCategory}-${item.id}`} style={{padding:"18px",borderRadius:"16px",border:"1px solid rgba(148,163,184,.25)",background:"rgba(255,255,255,.035)"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",gap:"14px"}}>
+                            <div><strong style={{fontSize:"17px"}}>{getHistoryCategoryIcon(selectedHistoryCategory)} {getHistoryTitle(item,selectedHistoryCategory)}</strong><div style={{marginTop:"8px",color:"#94a3b8",fontSize:"13px"}}>{getHistorySubtitle(item,selectedHistoryCategory)}</div>
+                              <div style={{display:"flex",flexWrap:"wrap",gap:"8px",marginTop:"12px"}}><span style={{padding:"5px 9px",borderRadius:"999px",background:"rgba(34,197,94,.12)",color:"#86efac",fontSize:"12px",fontWeight:700}}>✓ Completed</span>{date&&<span style={{padding:"5px 9px",borderRadius:"999px",background:"rgba(255,255,255,.06)",color:"#cbd5e1",fontSize:"12px"}}>📅 {date.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span>}{date&&<span style={{padding:"5px 9px",borderRadius:"999px",background:"rgba(255,255,255,.06)",color:"#cbd5e1",fontSize:"12px"}}>🕐 {formatHistoryTime(item)}</span>}</div>
+                              {details.length>0&&<div style={{marginTop:"10px",display:"flex",flexWrap:"wrap",gap:"10px",color:"#cbd5e1",fontSize:"13px"}}>{details.map(d=><span key={d}>{d}</span>)}</div>}
+                            </div><span style={{color:"#64748b",fontSize:"13px",whiteSpace:"nowrap"}}>{getHistoryRelativeText(item)}</span>
+                          </div>
+                        </article>;
+                      })}
                     </div>
+                    <div><div style={{padding:"20px",borderRadius:"18px",border:"1px solid rgba(148,163,184,.25)",background:"rgba(255,255,255,.035)"}}><h3 style={{marginTop:0}}>{getHistoryCategoryIcon(selectedHistoryCategory)} History Summary</h3><div className="report-mini-stats" style={{marginTop:"16px"}}><div><span>Total</span><strong>{selectedHistoryItems.length}</strong></div><div><span>History delay</span><strong>2 days</strong></div><div><span>Retention</span><strong>50 days</strong></div></div><p style={{marginTop:"18px",color:"#94a3b8",lineHeight:1.6}}>Completed items stay in their original Completed section for 2 full days, then appear in History. They are permanently deleted 50 days after the original completion time.</p></div></div>
+                  </div>}
+              </>
+            ) : (
+              <div style={{ marginTop: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "20px" }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>📅 Day Wise History</h2>
+                    <p style={{ margin: "6px 0 0", color: "#94a3b8" }}>Choose a date to see everything completed on that day.</p>
+                  </div>
 
-                  ) : (
-
-                    <>
-
-                      <div className="section-heading">
-
-                        <div>
-
-                          <h2>
-                            {formatDate(
-                              selectedReport.date
-                            )}
-                          </h2>
-
-                          <p>
-                            {selectedReport.date ===
-                            today
-                              ? "Live report for today"
-                              : "Saved daily report"}
-                          </p>
-
-                        </div>
-
-                      </div>
-
-
-                      <div className="report-mini-stats">
-
-                        <div>
-                          <span>
-                            Topics Completed
-                          </span>
-
-                          <strong>
-                            {
-                              selectedHistoryValues
-                                .topics
-                            }
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Tasks Completed
-                          </span>
-
-                          <strong>
-                            {
-                              selectedHistoryValues
-                                .tasks
-                            }
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Goal Progress
-                          </span>
-
-                          <strong>
-                            {
-                              selectedHistoryValues
-                                .goal
-                            }%
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Study Time
-                          </span>
-
-                          <strong>
-                            {formatMinutes(
-                              selectedHistoryValues
-                                .study
-                            )}
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Water
-                          </span>
-
-                          <strong>
-                            {formatLitres(
-                              selectedHistoryValues
-                                .water
-                            )}
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Activity
-                          </span>
-
-                          <strong>
-                            {formatMinutes(
-                              selectedHistoryValues
-                                .activity
-                            )}
-                          </strong>
-                        </div>
-
-
-                        <div>
-                          <span>
-                            Productivity
-                          </span>
-
-                          <strong>
-                            {
-                              selectedHistoryValues
-                                .productivity
-                            }%
-                          </strong>
-                        </div>
-
-                      </div>
-
-
-                      <div
-                        className="report-history-summary"
-                        style={{
-                          marginTop: "24px",
-                        }}
-                      >
-
-                        <h3>
-                          Daily Summary
-                        </h3>
-
-                        <p>
-                          {selectedReport.date ===
-                          today
-                            ? "Today's report uses your latest dashboard data, so changes such as adding water are reflected automatically."
-                            : "This report contains the saved activity recorded for this day."}
-                        </p>
-
-                      </div>
-
-                    </>
-
-                  )}
-
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "9px 12px", borderRadius: "12px", border: "1px solid rgba(148,163,184,.35)", background: "rgba(255,255,255,.04)", color: "#cbd5e1", fontWeight: 700 }}>
+                    📅
+                    <input
+                      type="date"
+                      value={selectedHistoryDate}
+                      min={availableHistoryDates.length ? availableHistoryDates[availableHistoryDates.length - 1] : undefined}
+                      max={today}
+                      onChange={(event) => setSelectedHistoryDate(event.target.value)}
+                      style={{ border: "none", outline: "none", background: "transparent", color: "inherit", fontWeight: 700, cursor: "pointer" }}
+                    />
+                  </label>
                 </div>
 
+                <div style={{ padding: "16px 18px", marginBottom: "18px", borderRadius: "16px", border: "1px solid rgba(37,99,235,.25)", background: "rgba(37,99,235,.08)" }}>
+                  <strong>📅 {formatHistoryDate(selectedHistoryDate)}</strong>
+                  <span style={{ marginLeft: "10px", color: "#94a3b8" }}>
+                    {selectedDayWiseItems.length} completed item{selectedDayWiseItems.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                {selectedDayWiseItems.length === 0 ? (
+                  <div className="empty-state">
+                    <div style={{ fontSize: "44px" }}>📅</div>
+                    <h3>No history for this date</h3>
+                    <p>Choose another date from the calendar.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    {selectedDayWiseItems.map((item) => {
+                      const details = getHistoryDetails(item, item.historyCategory);
+                      const date = getHistoryCompletedDate(item);
+                      return (
+                        <article key={`${item.historyCategory}-${item.id}-${selectedHistoryDate}`} style={{ padding: "18px", borderRadius: "16px", border: "1px solid rgba(148,163,184,.22)", background: "rgba(255,255,255,.025)" }}>
+                          <strong style={{ fontSize: "16px" }}>
+                            {getHistoryCategoryIcon(item.historyCategory)} {getHistoryTitle(item, item.historyCategory)}
+                          </strong>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", marginTop: "10px" }}>
+                            <span style={{ padding: "4px 8px", borderRadius: "999px", background: "rgba(255,255,255,.06)", color: "#cbd5e1", fontSize: "11px", fontWeight: 700 }}>{item.historyCategory}</span>
+                            <span style={{ padding: "4px 8px", borderRadius: "999px", background: "rgba(34,197,94,.10)", color: "#86efac", fontSize: "11px", fontWeight: 700 }}>✓ Completed</span>
+                            {date && <span style={{ padding: "4px 8px", borderRadius: "999px", background: "rgba(255,255,255,.06)", color: "#cbd5e1", fontSize: "11px" }}>🕐 {formatHistoryTime(item)}</span>}
+                          </div>
+                          <div style={{ marginTop: "9px", color: "#94a3b8", fontSize: "13px" }}>{getHistorySubtitle(item, item.historyCategory)}</div>
+                          {details.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginTop: "9px", color: "#cbd5e1", fontSize: "13px" }}>{details.map((detail) => <span key={detail}>{detail}</span>)}</div>}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-
             )}
-
           </div>
-
         </section>
       )}
 

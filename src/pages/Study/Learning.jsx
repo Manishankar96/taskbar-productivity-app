@@ -129,9 +129,66 @@ const INITIAL_TOPICS = [
 const LEARNING_INITIALIZED_KEY =
   "taskbar-learning-initialized";
 
+const HISTORY_CATEGORY = "Learning";
+const HISTORY_DELAY_DAYS = 2;
+const HISTORY_DELAY_MS =
+  HISTORY_DELAY_DAYS * 24 * 60 * 60 * 1000;
+
+function getCompletedTimestamp(topic) {
+  if (!topic?.completedAtTimestamp && !topic?.completedAt) {
+    return null;
+  }
+
+  const value =
+    topic.completedAtTimestamp ||
+    `${topic.completedAt}T00:00:00`;
+
+  const timestamp = new Date(value).getTime();
+
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function isReadyForHistory(topic) {
+  if (topic?.status !== "completed") {
+    return false;
+  }
+
+  const completedTimestamp =
+    getCompletedTimestamp(topic);
+
+  if (!completedTimestamp) {
+    return false;
+  }
+
+  return (
+    Date.now() - completedTimestamp >=
+    HISTORY_DELAY_MS
+  );
+}
+
+function isVisibleInLearning(
+  topic,
+  now = Date.now()
+) {
+  if (topic?.status !== "completed") {
+    return true;
+  }
+
+  if (!getCompletedTimestamp(topic)) {
+    return true;
+  }
+
+  return (
+    now -
+      getCompletedTimestamp(topic) <
+    HISTORY_DELAY_MS
+  );
+}
+
 function Learning() {
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [historyNow, setHistoryNow] = useState(Date.now());
 
   const [filter, setFilter] = useState("all");
   const [skillQuery, setSkillQuery] = useState("");
@@ -177,9 +234,48 @@ function Learning() {
         if (savedTopics.length > 0) {
           /*
             Existing Firebase data always wins.
+
+            Completed topics stay in the Learning page
+            for 2 days. After 2 days they are eligible
+            for History.
+
+            The topic is never removed from Firebase.
           */
 
-          setTopics(savedTopics);
+          const normalizedTopics = savedTopics.map((topic) => {
+            if (topic.status !== "completed") {
+              return topic;
+            }
+
+            return {
+              ...topic,
+              historyCategory:
+                topic.historyCategory || HISTORY_CATEGORY,
+              completedAtTimestamp:
+                topic.completedAtTimestamp ||
+                (topic.completedAt
+                  ? new Date(
+                      `${topic.completedAt}T00:00:00`
+                    ).toISOString()
+                  : new Date().toISOString()),
+            };
+          });
+
+          const needsHistoryMigration =
+            normalizedTopics.some(
+              (topic, index) =>
+                topic.status === "completed" &&
+                (
+                  !savedTopics[index].historyCategory ||
+                  !savedTopics[index].completedAtTimestamp
+                )
+            );
+
+          if (needsHistoryMigration) {
+            await saveTopics(normalizedTopics);
+          }
+
+          setTopics(normalizedTopics);
 
           if (!initialized) {
             localStorage.setItem(
@@ -239,50 +335,52 @@ function Learning() {
   }, []);
 
   // ========================================
+  // 2-DAY HISTORY TIMER
+  // ========================================
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHistoryNow(Date.now());
+    }, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ========================================
   // STATISTICS
   // ========================================
 
   const stats = useMemo(() => {
-    const activeTopics = topics.filter(
-      (topic) =>
-        topic.status !== "future"
+    const trackableTopics = topics.filter(
+      (topic) => topic.status !== "future"
     );
 
-    const completed =
-      activeTopics.filter(
-        (topic) =>
-          topic.status === "completed"
-      ).length;
+    const completed = trackableTopics.filter(
+      (topic) => topic.status === "completed"
+    ).length;
 
-    const inProgress =
-      activeTopics.filter(
-        (topic) =>
-          topic.status === "in-progress"
-      ).length;
+    const inProgress = trackableTopics.filter(
+      (topic) => topic.status === "in-progress"
+    ).length;
 
-    const remaining =
-      activeTopics.filter(
-        (topic) =>
-          topic.status === "remaining"
-      ).length;
+    const remaining = trackableTopics.filter(
+      (topic) => topic.status === "remaining"
+    ).length;
 
-    const future =
-      topics.filter(
-        (topic) =>
-          topic.status === "future"
-      ).length;
+    const future = topics.filter(
+      (topic) => topic.status === "future"
+    ).length;
 
     return {
-      total: activeTopics.length,
+      total: trackableTopics.length,
       completed,
       inProgress,
       remaining,
       future,
-      progress:
-        calculatePercentage(
-          completed,
-          activeTopics.length
-        ),
+      progress: calculatePercentage(
+        completed,
+        trackableTopics.length
+      ),
     };
   }, [topics]);
 
@@ -292,6 +390,13 @@ function Learning() {
 
   const filteredTopics =
     topics
+      // "Completed" must show all completed topics so old completed
+      // topics can still be opened, edited, or permanently deleted.
+      .filter((topic) =>
+        filter === "completed"
+          ? topic.status === "completed"
+          : isVisibleInLearning(topic, historyNow)
+      )
       .filter(
         (topic) =>
           filter === "all" ||
@@ -323,7 +428,9 @@ function Learning() {
   const skillProgress = useMemo(() => {
     const map = new Map();
 
-    topics.forEach((topic) => {
+    topics
+      .filter((topic) => topic.status !== "future")
+      .forEach((topic) => {
       if (!map.has(topic.skill)) {
         map.set(topic.skill, {
           skill: topic.skill,
@@ -494,13 +601,28 @@ function Learning() {
       */
 
       if (nowCompleted) {
-        changedTopic.completedAt =
-          wasCompleted &&
-          existingTopic.completedAt
+        const completedAt =
+          wasCompleted && existingTopic.completedAt
             ? existingTopic.completedAt
             : getTodayLocalDateKey();
+
+        changedTopic.completedAt = completedAt;
+        changedTopic.historyCategory = HISTORY_CATEGORY;
+
+        if (
+          wasCompleted &&
+          existingTopic.completedAtTimestamp
+        ) {
+          changedTopic.completedAtTimestamp =
+            existingTopic.completedAtTimestamp;
+        } else {
+          changedTopic.completedAtTimestamp =
+            new Date().toISOString();
+        }
       } else {
         delete changedTopic.completedAt;
+        delete changedTopic.completedAtTimestamp;
+        delete changedTopic.historyCategory;
       }
 
       updatedTopics = topics.map(
@@ -557,6 +679,10 @@ function Learning() {
       ) {
         changedTopic.completedAt =
           getTodayLocalDateKey();
+        changedTopic.completedAtTimestamp =
+          new Date().toISOString();
+        changedTopic.historyCategory =
+          HISTORY_CATEGORY;
       }
 
       updatedTopics = [
@@ -692,8 +818,17 @@ function Learning() {
           updatedTopic.completedAt =
             topic.completedAt ||
             getTodayLocalDateKey();
+
+          updatedTopic.historyCategory =
+            HISTORY_CATEGORY;
+
+          updatedTopic.completedAtTimestamp =
+            topic.completedAtTimestamp ||
+            new Date().toISOString();
         } else {
           delete updatedTopic.completedAt;
+          delete updatedTopic.completedAtTimestamp;
+          delete updatedTopic.historyCategory;
         }
 
         return updatedTopic;
@@ -1060,10 +1195,14 @@ function Learning() {
         </div>
 
         <p>
-          {stats.completed} of{" "}
-          {stats.total} active
-          topics completed
+          {stats.completed} of {stats.total} topics completed
         </p>
+
+        {stats.progress === 100 && stats.total > 0 && (
+          <p>
+            🎉 All topics completed!
+          </p>
+        )}
 
       </section>
 
@@ -1276,11 +1415,11 @@ function Learning() {
           >
 
             <option value="all">
-              All Topics
+              Active & Recently Completed
             </option>
 
             <option value="completed">
-              Completed
+              Completed (All)
             </option>
 
             <option value="in-progress">

@@ -4,6 +4,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
   deleteDoc,
 } from "firebase/firestore";
@@ -12,9 +13,9 @@ import { auth } from "../firebase/auth";
 import { db } from "../firebase/firestore";
 
 const STORES = {
-  topics: "topics", goals: "goals", timetable: "timetable", diet: "diet",
+  topics: "topics", goals: "goals", diet: "diet",
   water: "water", screenTime: "screenTime", activities: "activities",
-  assessments: "assessments", quickTasks: "quickTasks", streak: "streak",
+  assessments: "assessments", streak: "streak",
   profile: "profile", dailyReports: "dailyReports", quickNotes: "quickNotes",
   dailyTargets: "dailyTargets", reminders: "reminders", todoList: "todoList",
   studySessions: "studySessions", jobPreparation: "jobPreparation",
@@ -39,62 +40,114 @@ function getDocument(storeName, id) {
   return doc(db, "users", user.uid, storeName, String(id));
 }
 
+/* Serialize mutations per user/store so concurrent read/modify/write operations
+   cannot overlap and allow an older operation to finish after a newer one. */
+const writeQueues = new Map();
+
+function enqueueWrite(storeName, operation) {
+  const user = requireUser();
+  const key = `${user.uid}:${storeName}`;
+  const previous = writeQueues.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(operation);
+
+  writeQueues.set(
+    key,
+    current.finally(() => {
+      if (writeQueues.get(key) === current) {
+        writeQueues.delete(key);
+      }
+    })
+  );
+
+  return current;
+}
+
 /* =========================================================
    FIREBASE CRUD
 ========================================================= */
 
 export async function getItems(storeName) {
   const snapshot = await getDocs(getCollection(storeName));
-  return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+  return snapshot.docs.map((item) => ({ ...item.data(), id: item.id }));
 }
 
 export async function getItem(storeName, id) {
   const snapshot = await getDocs(getCollection(storeName));
   const found = snapshot.docs.find((item) => String(item.id) === String(id));
-  return found ? { id: found.id, ...found.data() } : null;
+  return found ? { ...found.data(), id: found.id } : null;
 }
 
 export async function putItem(storeName, item) {
   if (!item || item.id === undefined || item.id === null) {
     throw new Error(`A valid item.id is required for ${storeName}.`);
   }
-  await setDoc(getDocument(storeName, item.id), item, { merge: true });
-  return item;
+
+  return enqueueWrite(storeName, async () => {
+    await setDoc(getDocument(storeName, item.id), item, { merge: true });
+    return item;
+  });
 }
 
 export const addItem = putItem;
 export const updateItem = putItem;
 
 export async function deleteItem(storeName, id) {
-  await deleteDoc(getDocument(storeName, id));
-  return true;
+  return enqueueWrite(storeName, async () => {
+    const documentRef = getDocument(storeName, id);
+
+    await deleteDoc(documentRef);
+
+    // Verify the exact document is really gone before reporting success.
+    const verifySnapshot = await getDoc(documentRef);
+
+    if (verifySnapshot.exists()) {
+      throw new Error(
+        `Delete verification failed for ${storeName}/${String(id)}.`
+      );
+    }
+
+    return true;
+  });
 }
 
 export async function saveItems(storeName, items) {
   if (!Array.isArray(items)) throw new Error("saveItems expects an array");
 
-  const snapshot = await getDocs(getCollection(storeName));
-  const incomingIds = new Set(
-    items
-      .map((item) => item?.id)
-      .filter((id) => id !== undefined && id !== null)
-      .map(String)
-  );
+  return enqueueWrite(storeName, async () => {
+    // Read only after all earlier mutations for this collection have finished.
+    const snapshot = await getDocs(getCollection(storeName));
+    const incomingIds = new Set(
+      items
+        .map((item) => item?.id)
+        .filter((id) => id !== undefined && id !== null)
+        .map(String)
+    );
 
-  await Promise.all(
-    snapshot.docs
-      .filter((item) => !incomingIds.has(String(item.id)))
-      .map((item) => deleteDoc(item.ref))
-  );
+    await Promise.all(
+      snapshot.docs
+        .filter((item) => !incomingIds.has(String(item.id)))
+        .map((item) => deleteDoc(item.ref))
+    );
 
-  await Promise.all(items.map((item) => putItem(storeName, item)));
-  return items;
+    await Promise.all(
+      items.map((item) => {
+        if (!item || item.id === undefined || item.id === null) {
+          throw new Error(`A valid item.id is required for ${storeName}.`);
+        }
+        return setDoc(getDocument(storeName, item.id), item, { merge: true });
+      })
+    );
+
+    return items;
+  });
 }
 
 export async function clearStore(storeName) {
-  const snapshot = await getDocs(getCollection(storeName));
-  await Promise.all(snapshot.docs.map((item) => deleteDoc(item.ref)));
-  return true;
+  return enqueueWrite(storeName, async () => {
+    const snapshot = await getDocs(getCollection(storeName));
+    await Promise.all(snapshot.docs.map((item) => deleteDoc(item.ref)));
+    return true;
+  });
 }
 
 /* =========================================================
@@ -106,9 +159,6 @@ export const saveTopics = (items) => saveItems(STORES.topics, items);
 
 export const getGoals = () => getItems(STORES.goals);
 export const saveGoals = (items) => saveItems(STORES.goals, items);
-
-export const getTimetable = () => getItems(STORES.timetable);
-export const saveTimetable = (items) => saveItems(STORES.timetable, items);
 
 export const getDiet = () => getItems(STORES.diet);
 export const saveDiet = (items) => saveItems(STORES.diet, items);
@@ -127,10 +177,6 @@ export const saveActivities = (items) =>
 export const getAssessments = () => getItems(STORES.assessments);
 export const saveAssessments = (items) =>
   saveItems(STORES.assessments, items);
-
-export const getQuickTasks = () => getItems(STORES.quickTasks);
-export const saveQuickTasks = (items) =>
-  saveItems(STORES.quickTasks, items);
 
 export const getStreak = () => getItems(STORES.streak);
 export const saveStreak = (items) => saveItems(STORES.streak, items);
@@ -196,8 +242,14 @@ export const deleteTodoItem = (id) =>
 export const getStudySessions = () =>
   getItems(STORES.studySessions);
 
-export const saveStudySessions = (items) =>
-  saveItems(STORES.studySessions, items);
+// Study Sessions must use individual document writes.
+// Collection-wide saveItems() is intentionally disabled here because a stale
+// session array can delete or recreate other Study Session documents.
+export const saveStudySessions = () => {
+  throw new Error(
+    "saveStudySessions is disabled. Use addStudySession/updateStudySession for individual Study Sessions."
+  );
+};
 
 export const addStudySession = (item) =>
   putItem(STORES.studySessions, item);
@@ -737,25 +789,21 @@ export async function createDailyReportForDate(
   const [
     topics,
     goals,
-    timetable,
     diet,
     water,
     screenTime,
     activities,
     assessments,
-    quickTasks,
     streak,
     studySessions,
   ] = await Promise.all([
     getTopics(),
     getGoals(),
-    getTimetable(),
     getDiet(),
     getWater(),
     getScreenTime(),
     getActivities(),
     getAssessments(),
-    getQuickTasks(),
     getStreak(),
     getStudySessions(),
   ]);
@@ -854,35 +902,6 @@ export async function createDailyReportForDate(
             goalProgressValues.length
         )
       : 0;
-
-  /* -------------------------
-     TIMETABLE
-  ------------------------- */
-
-  const dailyTimetable =
-    timetable.filter(
-      (item) =>
-        itemMatchesDate(
-          item,
-          date
-        )
-    );
-
-  const timetableCompleted =
-    dailyTimetable.filter(
-      (item) =>
-        item.status ===
-          "completed" ||
-        item.completed === true ||
-        item.isCompleted === true
-    ).length;
-
-  const timetableMissed =
-    dailyTimetable.filter(
-      (item) =>
-        item.status === "missed" ||
-        item.missed === true
-    ).length;
 
   /* -------------------------
      DIET
@@ -1054,28 +1073,6 @@ export async function createDailyReportForDate(
         item.missed === true
     ).length;
 
-  /* -------------------------
-     QUICK TASKS
-  ------------------------- */
-
-  const dailyTasks =
-    quickTasks.filter(
-      (item) =>
-        itemMatchesDate(
-          item,
-          date
-        )
-    );
-
-  const tasksCompleted =
-    dailyTasks.filter(
-      (item) =>
-        item.completed === true ||
-        item.status ===
-          "completed" ||
-        item.isCompleted === true
-    ).length;
-
   /* =========================================================
      PRODUCTIVITY SCORE
   ========================================================= */
@@ -1105,17 +1102,6 @@ export async function createDailyReportForDate(
         )
       : 0;
 
-  const taskCompletionRate =
-    dailyTasks.length > 0
-      ? Math.round(
-          (tasksCompleted /
-            dailyTasks.length) *
-            100
-        )
-      : tasksCompleted > 0
-        ? 100
-        : 0;
-
   const learningScore =
     learningCompleted > 0
       ? 25
@@ -1127,11 +1113,7 @@ export async function createDailyReportForDate(
         0.20
     );
 
-  const taskScore =
-    Math.round(
-      taskCompletionRate *
-        0.20
-    );
+  const taskScore = 0;
 
   const waterScore =
     Math.round(
@@ -1229,17 +1211,6 @@ export async function createDailyReportForDate(
         averageGoalProgress,
     },
 
-    timetable: {
-      planned:
-        dailyTimetable.length,
-
-      completed:
-        timetableCompleted,
-
-      missed:
-        timetableMissed,
-    },
-
     diet: {
       total:
         dailyDiet.length,
@@ -1287,14 +1258,6 @@ export async function createDailyReportForDate(
         assessmentsMissed,
     },
 
-    quickTasks: {
-      total:
-        dailyTasks.length,
-
-      completed:
-        tasksCompleted,
-    },
-
     streak: {
       current:
         currentStreak,
@@ -1309,14 +1272,11 @@ export async function createDailyReportForDate(
         dailyDiet.length +
         dailyActivities.length +
         dailyAssessments.length +
-        dailyTasks.length +
         dailyStudySessions.length,
 
       totalCompleted:
         learningCompleted +
-        timetableCompleted +
-        assessmentsCompleted +
-        tasksCompleted,
+        assessmentsCompleted,
 
       studyMinutes:
         studySessionMinutes,
@@ -1335,9 +1295,6 @@ export async function createDailyReportForDate(
 
       learningCompleted:
         learningCompleted,
-
-      tasksCompleted:
-        tasksCompleted,
 
       productivityScore:
         productivityScore,
@@ -1371,37 +1328,31 @@ export async function ensureDailyReportHistory() {
   const [
     topics,
     goals,
-    timetable,
     diet,
     water,
     screenTime,
     activities,
     assessments,
-    quickTasks,
     studySessions,
   ] = await Promise.all([
     getTopics(),
     getGoals(),
-    getTimetable(),
     getDiet(),
     getWater(),
     getScreenTime(),
     getActivities(),
     getAssessments(),
-    getQuickTasks(),
     getStudySessions(),
   ]);
 
   const allItems = [
     ...topics,
     ...goals,
-    ...timetable,
     ...diet,
     ...water,
     ...screenTime,
     ...activities,
     ...assessments,
-    ...quickTasks,
     ...studySessions,
   ];
 
@@ -1495,10 +1446,7 @@ export async function ensureDailyReportHistory() {
           report?.learning
             ?.completed
         ) > 0 ||
-        safeNumber(
-          report?.quickTasks
-            ?.completed
-        ) > 0;
+        true;
 
       if (hasStoredData) {
         await createDailyReportForDate(
@@ -1542,13 +1490,11 @@ export async function exportAllData() {
   const [
     topics,
     goals,
-    timetable,
     diet,
     water,
     screenTime,
     activities,
     assessments,
-    quickTasks,
     streak,
     profile,
     dailyReports,
@@ -1573,13 +1519,11 @@ export async function exportAllData() {
   ] = await Promise.all([
     getTopics(),
     getGoals(),
-    getTimetable(),
     getDiet(),
     getWater(),
     getScreenTime(),
     getActivities(),
     getAssessments(),
-    getQuickTasks(),
     getStreak(),
     getProfile(),
     getDailyReports(),
@@ -1611,13 +1555,11 @@ export async function exportAllData() {
 
     topics,
     goals,
-    timetable,
     diet,
     water,
     screenTime,
     activities,
     assessments,
-    quickTasks,
     streak,
 
     profile,
@@ -1659,13 +1601,11 @@ export function validateBackup(data) {
   const arrayStores = [
     "topics",
     "goals",
-    "timetable",
     "diet",
     "water",
     "screenTime",
     "activities",
     "assessments",
-    "quickTasks",
     "streak",
     "dailyReports",
 
@@ -1735,13 +1675,11 @@ export async function importAllData(data) {
   const arrayStores = [
     "topics",
     "goals",
-    "timetable",
     "diet",
     "water",
     "screenTime",
     "activities",
     "assessments",
-    "quickTasks",
     "streak",
     "dailyReports",
 
@@ -1775,10 +1713,22 @@ export async function importAllData(data) {
         STORES[key]
       );
 
-      await saveItems(
-        STORES[key],
-        data[key]
-      );
+      if (key === "studySessions") {
+        // Restore Study Sessions one document at a time.
+        // Do not use collection-wide saveItems() for normal Study Session
+        // persistence because it can recreate/delete sessions from stale arrays.
+        for (const session of data[key]) {
+          await putItem(
+            STORES.studySessions,
+            session
+          );
+        }
+      } else {
+        await saveItems(
+          STORES[key],
+          data[key]
+        );
+      }
     }
   }
 

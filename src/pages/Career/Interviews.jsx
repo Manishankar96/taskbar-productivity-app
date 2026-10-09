@@ -19,6 +19,25 @@ import {
 const INTERVIEWS_COLLECTION = "interviews";
 const INTERVIEWS_UPDATED_EVENT = "taskbarInterviewsUpdated";
 
+const HISTORY_CATEGORY = "Career Applications";
+const HISTORY_STATUSES = ["Completed", "Passed", "Failed", "Cancelled"];
+const COMPLETED_TO_HISTORY_DAYS = 2;
+const COMPLETED_TO_HISTORY_MS =
+  COMPLETED_TO_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+function isHistoryEligible(interview, now = Date.now()) {
+  if (!HISTORY_STATUSES.includes(interview?.status)) {
+    return false;
+  }
+
+  const timestamp = new Date(interview.completedAt).getTime();
+
+  return (
+    Number.isFinite(timestamp) &&
+    now - timestamp >= COMPLETED_TO_HISTORY_MS
+  );
+}
+
 function notifyInterviewsUpdated() {
   window.dispatchEvent(new Event(INTERVIEWS_UPDATED_EVENT));
 }
@@ -118,6 +137,7 @@ export default function Interviews() {
   const [search, setSearch] = useState("");
 
   const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     let mounted = true;
@@ -131,7 +151,22 @@ export default function Interviews() {
         );
 
         if (mounted) {
-          setInterviews(Array.isArray(data) ? data : []);
+          const normalizedInterviews = (Array.isArray(data) ? data : []).map(
+            (interview) => {
+              if (HISTORY_STATUSES.includes(interview.status)) {
+                return {
+                  ...interview,
+                  historyCategory:
+                    interview.historyCategory || HISTORY_CATEGORY,
+                  completedAt: interview.completedAt || null,
+                };
+              }
+
+              return interview;
+            }
+          );
+
+          setInterviews(normalizedInterviews);
         }
       } catch (error) {
         console.error(
@@ -154,6 +189,14 @@ export default function Interviews() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   async function persistInterviews(updatedInterviews) {
@@ -182,6 +225,10 @@ export default function Interviews() {
     const searchText = search.trim().toLowerCase();
 
     return [...interviews]
+      .filter(
+        (interview) =>
+          !isHistoryEligible(interview, now)
+      )
       .filter((interview) => {
         if (statusFilter === "All") {
           return true;
@@ -213,29 +260,25 @@ export default function Interviews() {
 
         return first.localeCompare(second);
       });
-  }, [interviews, search, statusFilter]);
+  }, [interviews, search, statusFilter, now]);
 
   const stats = useMemo(() => {
-    return {
-      total: interviews.length,
+    const activeInterviews = interviews.filter(
+      (item) => !isHistoryEligible(item, now)
+    );
 
-      scheduled: interviews.filter(
+    return {
+      total: activeInterviews.length,
+
+      scheduled: activeInterviews.filter(
         (item) => item.status === "Scheduled"
       ).length,
 
-      completed: interviews.filter(
-        (item) => item.status === "Completed"
-      ).length,
-
-      passed: interviews.filter(
-        (item) => item.status === "Passed"
-      ).length,
-
-      failed: interviews.filter(
-        (item) => item.status === "Failed"
-      ).length,
+      completed: 0,
+      passed: 0,
+      failed: 0,
     };
-  }, [interviews]);
+  }, [interviews, now]);
 
   function openAddForm() {
     setEditingId(null);
@@ -305,6 +348,18 @@ export default function Interviews() {
               time: form.time,
               round: form.round,
               status: form.status,
+              ...(HISTORY_STATUSES.includes(form.status)
+                ? {
+                    historyCategory: HISTORY_CATEGORY,
+                    completedAt:
+                      HISTORY_STATUSES.includes(interview.status) && interview.completedAt
+                        ? interview.completedAt
+                        : new Date().toISOString(),
+                  }
+                : {
+                    historyCategory: undefined,
+                    completedAt: undefined,
+                  }),
               interviewer: form.interviewer.trim(),
               meetingLink: form.meetingLink.trim(),
               notes: form.notes.trim(),
@@ -321,6 +376,12 @@ export default function Interviews() {
         time: form.time,
         round: form.round,
         status: form.status,
+        ...(HISTORY_STATUSES.includes(form.status)
+          ? {
+              historyCategory: HISTORY_CATEGORY,
+              completedAt: new Date().toISOString(),
+            }
+          : {}),
         interviewer: form.interviewer.trim(),
         meetingLink: form.meetingLink.trim(),
         notes: form.notes.trim(),
@@ -386,6 +447,18 @@ export default function Interviews() {
           ? {
               ...interview,
               status,
+              ...(HISTORY_STATUSES.includes(status)
+                ? {
+                    historyCategory: HISTORY_CATEGORY,
+                    completedAt:
+                      HISTORY_STATUSES.includes(interview.status) && interview.completedAt
+                        ? interview.completedAt
+                        : new Date().toISOString(),
+                  }
+                : {
+                    historyCategory: undefined,
+                    completedAt: undefined,
+                  }),
               updatedAt: new Date().toISOString(),
             }
           : interview

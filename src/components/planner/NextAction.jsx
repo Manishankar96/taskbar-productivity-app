@@ -1,6 +1,6 @@
-import { ArrowRight, CheckSquare, Clock3 } from "lucide-react";
+import { ArrowRight, CheckSquare } from "lucide-react";
 
-function NextAction({ tasks = [], timetable = [], today }) {
+function NextAction({ tasks = [], today }) {
   const safeToday =
     today ||
     new Date().toISOString().split("T")[0];
@@ -43,30 +43,10 @@ function NextAction({ tasks = [], timetable = [], today }) {
   const nextTask = pendingTasks[0];
 
   // --------------------------------------------------
-  // FIND SCHEDULED ACTIVITIES
-  // --------------------------------------------------
-
-  const todaySchedule = timetable
-    .filter(
-      (entry) =>
-        entry &&
-        entry.day
-    )
-    .slice()
-    .sort((a, b) =>
-      String(a.startTime || "").localeCompare(
-        String(b.startTime || "")
-      )
-    );
-
-  // --------------------------------------------------
   // NOTHING TO DO
   // --------------------------------------------------
 
-  if (
-    !nextTask &&
-    todaySchedule.length === 0
-  ) {
+  if (!nextTask) {
     return (
       <div className="planner-next-action planner-next-action-empty">
         <CheckSquare size={20} />
@@ -78,43 +58,6 @@ function NextAction({ tasks = [], timetable = [], today }) {
 
           <span>
             Your scheduled work is clear.
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  // --------------------------------------------------
-  // NEXT SCHEDULED ACTIVITY
-  // --------------------------------------------------
-
-  if (
-    !nextTask &&
-    todaySchedule[0]
-  ) {
-    const entry = todaySchedule[0];
-
-    return (
-      <div className="planner-next-action">
-        <Clock3 size={20} />
-
-        <div>
-          <small>
-            Next scheduled activity
-          </small>
-
-          <strong>
-            {entry.activity ||
-              entry.title ||
-              "Scheduled activity"}
-          </strong>
-
-          <span>
-            {entry.startTime || ""}
-
-            {entry.endTime
-              ? ` – ${entry.endTime}`
-              : ""}
           </span>
         </div>
       </div>

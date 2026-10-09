@@ -20,13 +20,11 @@ import { db } from "./firestore";
 const SYNC_STORES = [
   "topics",
   "goals",
-  "timetable",
   "diet",
   "water",
   "screenTime",
   "activities",
   "assessments",
-  "quickTasks",
   "streak",
   "profile",
   "dailyReports",

@@ -11,7 +11,9 @@ import {
 import Modal from "../../components/common/Modal";
 import {
   getStudySessions,
-  saveStudySessions,
+  addStudySession,
+  updateStudySession,
+  deleteStudySession,
 } from "../../utils/db";
 
 import {
@@ -21,6 +23,21 @@ import {
   getWeekdayLabel,
   sumBy,
 } from "../../utils/calculations";
+
+const HISTORY_CATEGORY = "Study Sessions";
+const COMPLETED_TO_HISTORY_DAYS = 2;
+const COMPLETED_TO_HISTORY_MS =
+  COMPLETED_TO_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+function getHistoryEligibleAt(completedAt) {
+  const timestamp = new Date(completedAt).getTime();
+
+  if (!Number.isFinite(timestamp)) {
+    return null;
+  }
+
+  return new Date(timestamp + COMPLETED_TO_HISTORY_MS);
+}
 
 const emptyForm = {
   subject: "",
@@ -39,15 +56,36 @@ function StudySessions() {
   const [editingSession, setEditingSession] =
     useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [historyClock, setHistoryClock] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHistoryClock(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     async function load() {
       try {
         const saved = await getStudySessions();
 
-        setSessions(
-          Array.isArray(saved) ? saved : []
-        );
+        const list = Array.isArray(saved) ? saved : [];
+
+        const normalized = list.map((session) => ({
+          ...session,
+          historyCategory:
+            session.historyCategory || HISTORY_CATEGORY,
+          // Never create a new completion time while loading.
+          // For existing records without completedAt, keep it null.
+          completedAt:
+            session.completedAt ||
+            session.completedAtTimestamp ||
+            null,
+        }));
+
+        setSessions(normalized);
       } catch (error) {
         console.error(
           "Failed to load study sessions:",
@@ -61,17 +99,23 @@ function StudySessions() {
     load();
   }, []);
 
-  async function persist(updated) {
-    setSessions(updated);
+  async function persistNewSession(session) {
+    await addStudySession(session);
+    setSessions((previous) => [
+      ...previous,
+      session,
+    ]);
+  }
 
-    try {
-      await saveStudySessions(updated);
-    } catch (error) {
-      console.error(
-        "Failed to save study sessions:",
-        error
-      );
-    }
+  async function persistUpdatedSession(session) {
+    await updateStudySession(session);
+    setSessions((previous) =>
+      previous.map((item) =>
+        String(item?.id) === String(session?.id)
+          ? session
+          : item
+      )
+    );
   }
 
   function openAddForm() {
@@ -235,46 +279,89 @@ function StudySessions() {
       duration,
       notes:
         form.notes.trim(),
+      historyCategory: HISTORY_CATEGORY,
+      // A study session is a completed/logged item when it is saved.
+      // Editing must NOT reset the original completion timestamp.
+      completedAt:
+        editingSession?.completedAt ||
+        new Date().toISOString(),
     };
 
-    if (editingSession) {
-      await persist(
-        sessions.map((item) =>
-          item.id ===
-          editingSession.id
-            ? session
-            : item
-        )
-      );
-    } else {
-      await persist([
-        ...sessions,
-        {
+    try {
+      if (editingSession) {
+        await persistUpdatedSession(session);
+      } else {
+        await persistNewSession({
           ...session,
-          id: Date.now(),
-        },
-      ]);
-    }
+          id: String(Date.now()),
+        });
+      }
 
-    closeForm();
+      closeForm();
+    } catch (error) {
+      console.error(
+        "Failed to save study session:",
+        error
+      );
+
+      alert(
+        "Could not save the study session. Check the browser console for the Firebase error."
+      );
+    }
   }
 
   async function deleteSession(session) {
-    const confirmed =
-      window.confirm(
-        `Delete this ${session.subject} study session?`
-      );
+    const confirmed = window.confirm(
+      `Delete this ${session.subject} study session?`
+    );
 
     if (!confirmed) {
       return;
     }
 
-    await persist(
-      sessions.filter(
-        (item) =>
-          item.id !== session.id
+    const sessionId = String(session?.id ?? "").trim();
+
+    if (!sessionId) {
+      alert("This study session has no valid ID, so it cannot be deleted.");
+      return;
+    }
+
+    // Remove it immediately from the UI.
+    // If Firestore deletion fails, restore the exact previous UI state.
+    const previousSessions = sessions;
+
+    setSessions((previous) =>
+      previous.filter(
+        (item) => String(item?.id ?? "") !== sessionId
       )
     );
+
+    try {
+      // Delete the exact Firestore document.
+      // Never use saveStudySessions(filteredArray) here.
+      await deleteStudySession(sessionId);
+
+      // Verify that the exact document is gone.
+      const remaining = await getStudySessions();
+      const stillExists = remaining.some(
+        (item) => String(item?.id ?? "") === sessionId
+      );
+
+      if (stillExists) {
+        throw new Error(
+          `Firestore still contains study session ${sessionId}.`
+        );
+      }
+    } catch (error) {
+      console.error("Failed to delete study session:", error);
+
+      // Roll back the optimistic UI update if Firestore failed.
+      setSessions(previousSessions);
+
+      alert(
+        "Could not delete the study session. Check the browser console for the Firebase error."
+      );
+    }
   }
 
   const today =
@@ -301,6 +388,33 @@ function StudySessions() {
       [sessions, today]
     );
 
+  const recentSessions =
+    useMemo(() => {
+      const cutoff = Date.now() - COMPLETED_TO_HISTORY_MS;
+
+      return sessions
+        .filter((session) => {
+          const timestamp = session?.completedAt
+            ? new Date(session.completedAt).getTime()
+            : NaN;
+
+          return (
+            Number.isFinite(timestamp) &&
+            timestamp >= cutoff
+          );
+        })
+        .sort((a, b) => {
+          const aTime = new Date(
+            a.completedAt
+          ).getTime();
+          const bTime = new Date(
+            b.completedAt
+          ).getTime();
+
+          return bTime - aTime;
+        });
+    }, [sessions, historyClock]);
+
   const todayMinutes =
     useMemo(
       () =>
@@ -311,15 +425,17 @@ function StudySessions() {
       [todaySessions]
     );
 
-  const totalMinutes =
-    useMemo(
-      () =>
-        sumBy(
-          sessions,
-          "duration"
-        ),
-      [sessions]
-    );
+  // Total Logged must always be calculated from the current sessions state.
+  // This makes a deleted session disappear from the total immediately.
+  const totalMinutes = useMemo(
+    () =>
+      sessions.reduce(
+        (total, session) =>
+          total + (Number(session?.duration) || 0),
+        0
+      ),
+    [sessions]
+  );
 
   const weeklyChartData =
     useMemo(() => {
@@ -777,7 +893,7 @@ function StudySessions() {
       </section>
 
 
-      {/* TODAY'S SESSIONS */}
+      {/* RECENT SESSIONS - 2 DAY RETENTION */}
 
       <section
         className="learning-section"
@@ -791,11 +907,11 @@ function StudySessions() {
           <div>
 
             <h2>
-              Today's Sessions
+              Recent Sessions
             </h2>
 
             <p>
-              Actual study sessions logged for today.
+              Completed study sessions stay here for 2 full days before moving to History.
             </p>
 
           </div>
@@ -805,7 +921,7 @@ function StudySessions() {
 
         <div className="topic-list">
 
-          {todaySessions.map(
+          {recentSessions.map(
             (session) => (
               <div
                 className="topic-row"
@@ -838,6 +954,11 @@ function StudySessions() {
 
                     {session.notes
                       ? ` • ${session.notes}`
+                      : ""}
+                    {session.completedAt
+                      ? ` • History after ${getHistoryEligibleAt(
+                          session.completedAt
+                        )?.toLocaleDateString("en-IN") || "2 days"}`
                       : ""}
                   </span>
 
@@ -884,10 +1005,10 @@ function StudySessions() {
           )}
 
 
-          {todaySessions.length ===
+          {recentSessions.length ===
             0 && (
             <p className="empty-topics">
-              No study sessions logged today.
+              No recently completed study sessions.
             </p>
           )}
 

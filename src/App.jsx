@@ -46,7 +46,6 @@ import "./styles/Productivity.css";
 
 import Home from "./pages/Home";
 import Learning from "./pages/Study/Learning";
-import Timetable from "./pages/Study/Timetable";
 import Goals from "./pages/Study/Goals";
 
 import Water from "./pages/Wellness/Water";
@@ -348,7 +347,6 @@ function DailyReviewRoute() {
     learning: [],
     goals: [],
     assessments: [],
-    timetable: [],
     applications: [],
     interviews: [],
     studySessions: [],
@@ -365,7 +363,6 @@ function DailyReviewRoute() {
           learning,
           goals,
           assessments,
-          timetable,
           applications,
           interviews,
           studySessions,
@@ -375,7 +372,6 @@ function DailyReviewRoute() {
           getItemsFromFirestore("topics"),
           getItemsFromFirestore("goals"),
           getItemsFromFirestore("assessments"),
-          getItemsFromFirestore("timetable"),
           getItemsFromFirestore("applications"),
           getItemsFromFirestore("interviews"),
           getItemsFromFirestore("studySessions"),
@@ -391,7 +387,6 @@ function DailyReviewRoute() {
           learning: Array.isArray(learning) ? learning : [],
           goals: Array.isArray(goals) ? goals : [],
           assessments: Array.isArray(assessments) ? assessments : [],
-          timetable: Array.isArray(timetable) ? timetable : [],
           applications: Array.isArray(applications) ? applications : [],
           interviews: Array.isArray(interviews) ? interviews : [],
           studySessions: Array.isArray(studySessions) ? studySessions : [],
@@ -435,11 +430,6 @@ const navigation = [
         label: "Learning",
         path: "/learning",
         icon: BookOpen,
-      },
-      {
-        label: "Timetable",
-        path: "/timetable",
-        icon: CalendarDays,
       },
       {
         label: "Calendar View",
@@ -621,7 +611,6 @@ const mobileMoreNavigation = [
   { label: "Quick Tasks", path: "/quick-tasks", icon: ListTodo },
   { label: "Quick Notes", path: "/quick-notes", icon: StickyNote },
   { label: "Reminders", path: "/reminders", icon: Bell },
-  { label: "Timetable", path: "/timetable", icon: CalendarDays },
   { label: "Calendar", path: "/calendar", icon: CalendarDays },
   { label: "Assessments", path: "/assessments", icon: ClipboardCheck },
   { label: "Study Sessions", path: "/study-sessions", icon: Clock3 },
@@ -888,7 +877,7 @@ function MobileMoreMenu({
 
 function MobileBottomNavigation({ onMore, moreOpen, onAdd, addOpen }) {
   const location = useLocation();
-  const studyPaths = ["/learning", "/timetable", "/calendar", "/assessments", "/study-sessions"];
+  const studyPaths = ["/learning", "/calendar", "/assessments", "/study-sessions"];
   const careerPaths = ["/job-preparation", "/applications", "/saved-jobs", "/resumes", "/interviews", "/projects"];
   const isMoreRoute = mobileMoreNavigation.some((item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`));
 
@@ -1009,7 +998,6 @@ function AddActionMenu({ isOpen, onClose }) {
   const actions = [
     { label: "Add Task", description: "Create a quick task", path: "/quick-tasks", icon: ListTodo },
     { label: "Add Goal", description: "Create a new goal", path: "/goals", icon: Target },
-    { label: "Add Schedule", description: "Plan a timetable item", path: "/timetable", icon: CalendarDays },
     { label: "Add Note", description: "Write a quick note", path: "/quick-notes", icon: StickyNote },
   ];
 
@@ -1078,7 +1066,7 @@ function AppHeader({ isProfilePage, onMenuToggle, sidebarOpen, mobileMainMenuOpe
     };
   }, []);
   const pageTitles = {
-    "/": "Home", "/learning": "Learning", "/timetable": "Timetable",
+    "/": "Home", "/learning": "Learning",
     "/calendar": "Calendar", "/assessments": "Assessments", "/study-sessions": "Study Sessions",
     "/todo-list": "To-Do List", "/goals": "Goals", "/quick-notes": "Quick Notes",
     "/reminders": "Reminders", "/water": "Water", "/activities": "Activities",
@@ -1404,13 +1392,6 @@ function AppLayout() {
               path="/learning"
               element={
                 <Learning />
-              }
-            />
-
-            <Route
-              path="/timetable"
-              element={
-                <Timetable />
               }
             />
 

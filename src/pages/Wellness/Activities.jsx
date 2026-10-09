@@ -21,6 +21,25 @@ import {
 } from "../../utils/calculations";
 
 const ACTIVITIES_COLLECTION = "activities";
+const HISTORY_CATEGORY = "Activities";
+const COMPLETED_TO_HISTORY_DAYS = 2;
+const COMPLETED_TO_HISTORY_MS =
+  COMPLETED_TO_HISTORY_DAYS * 24 * 60 * 60 * 1000;
+
+function getActivityCompletedAt(activity) {
+  // completedAt is the only source of truth for the 48-hour history timer.
+  return activity?.completedAt || null;
+}
+
+function isHistoryEligible(activity, now = Date.now()) {
+  const completedAt = getActivityCompletedAt(activity);
+  const timestamp = completedAt ? new Date(completedAt).getTime() : NaN;
+
+  return (
+    Number.isFinite(timestamp) &&
+    now - timestamp >= COMPLETED_TO_HISTORY_MS
+  );
+}
 
 const CATEGORIES = [
   "Coding",
@@ -45,6 +64,7 @@ function Activities() {
   const [showForm, setShowForm] = useState(false);
   const [editingActivity, setEditingActivity] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [now, setNow] = useState(Date.now());
 
   /*
    * ============================================================
@@ -72,6 +92,12 @@ function Activities() {
                 duration: Number(item.duration) || 0,
                 date: item.date || "",
                 notes: item.notes || "",
+                historyCategory:
+                  item.historyCategory || HISTORY_CATEGORY,
+                completedAt:
+                  item.completedAt ||
+                  item.completedAtTimestamp ||
+                  null,
               }))
             : [];
 
@@ -99,6 +125,12 @@ function Activities() {
                   duration: Number(item.duration) || 0,
                   date: item.date || "",
                   notes: item.notes || "",
+                  historyCategory:
+                    item.historyCategory || HISTORY_CATEGORY,
+                  completedAt:
+                    item.completedAt ||
+                    item.completedAtTimestamp ||
+                    null,
                 }))
               : [];
 
@@ -123,7 +155,12 @@ function Activities() {
 
     load();
 
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60 * 1000);
+
     return () => {
+      window.clearInterval(interval);
       mounted = false;
 
       if (unsubscribe) {
@@ -189,9 +226,11 @@ function Activities() {
   const todaysActivities = useMemo(
     () =>
       activities.filter(
-        (activity) => activity.date === today
+        (activity) =>
+          activity.date === today &&
+          !isHistoryEligible(activity, now)
       ),
-    [activities, today]
+    [activities, today, now]
   );
 
   /*
@@ -199,6 +238,33 @@ function Activities() {
    * TOTAL TIME
    * ============================================================
    */
+
+  const recentActivities = useMemo(() => {
+    const cutoff = Date.now() - COMPLETED_TO_HISTORY_MS;
+
+    return activities
+      .filter((activity) => {
+        const timestamp = getActivityCompletedAt(activity)
+          ? new Date(
+              getActivityCompletedAt(activity)
+            ).getTime()
+          : NaN;
+
+        return (
+          Number.isFinite(timestamp) &&
+          timestamp >= cutoff
+        );
+      })
+      .sort(
+        (a, b) =>
+          new Date(
+            getActivityCompletedAt(b)
+          ).getTime() -
+          new Date(
+            getActivityCompletedAt(a)
+          ).getTime()
+      );
+  }, [activities, now]);
 
   const totalTimeToday = sumBy(
     todaysActivities,
@@ -308,6 +374,12 @@ function Activities() {
         duration,
         date: form.date,
         notes: form.notes || "",
+        historyCategory:
+          editingActivity.historyCategory || HISTORY_CATEGORY,
+        completedAt:
+          editingActivity.completedAt ||
+          editingActivity.completedAtTimestamp ||
+          null,
       };
 
       const updated = activities.map((activity) =>
@@ -326,6 +398,8 @@ function Activities() {
         duration,
         date: form.date,
         notes: form.notes || "",
+        historyCategory: HISTORY_CATEGORY,
+        completedAt: new Date().toISOString(),
       };
 
       await persist(
@@ -570,17 +644,21 @@ function Activities() {
       {/* TWO COLUMN CONTENT */}
 
       <section className="two-column">
-        {/* TODAY'S ACTIVITIES */}
+        {/* RECENT ACTIVITIES - 2 DAY RETENTION */}
 
         <div className="section-card">
           <div className="section-title">
             <ActivityIcon size={22} />
 
-            <h2>Today's Activities</h2>
+            <h2>Recent Activities</h2>
           </div>
 
+          <p style={{ margin: "0 0 14px", color: "#94a3b8" }}>
+            Completed activities stay here for 2 full days before moving to History.
+          </p>
+
           <div className="topic-list">
-            {todaysActivities.map((activity) => (
+            {recentActivities.map((activity) => (
               <div
                 className="topic-row"
                 key={activity.id}
@@ -627,9 +705,9 @@ function Activities() {
               </div>
             ))}
 
-            {todaysActivities.length === 0 && (
+            {recentActivities.length === 0 && (
               <p className="empty-topics">
-                No activities logged today.
+                No recently completed activities.
               </p>
             )}
           </div>

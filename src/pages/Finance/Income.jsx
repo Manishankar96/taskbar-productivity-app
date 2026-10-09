@@ -182,53 +182,85 @@ export default function Income() {
 
   /*
    * =========================================================
-   * CURRENT MONTH INCOME
+   * SELECTED MONTH
    * =========================================================
    */
 
-  const currentMonthIncome = useMemo(() => {
-    const now = new Date();
+  const getMonthStart = (date) =>
+    new Date(date.getFullYear(), date.getMonth(), 1);
 
-    return incomeList
-      .filter((item) => {
-        if (!item.date) return false;
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    getMonthStart(new Date())
+  );
 
-        const date = new Date(
-          `${item.date}T00:00:00`
-        );
+  function changeMonth(offset) {
+    setSelectedMonth(
+      (previous) =>
+        new Date(
+          previous.getFullYear(),
+          previous.getMonth() + offset,
+          1
+        )
+    );
+  }
 
-        return (
-          date.getMonth() === now.getMonth() &&
-          date.getFullYear() === now.getFullYear()
-        );
-      })
-      .reduce(
-        (total, item) =>
-          total + Number(item.amount || 0),
-        0
-      );
-  }, [incomeList]);
+  function goToCurrentMonth() {
+    setSelectedMonth(getMonthStart(new Date()));
+  }
+
+  const selectedMonthLabel = useMemo(() => {
+    return selectedMonth.toLocaleDateString("en-IN", {
+      month: "long",
+      year: "numeric",
+    });
+  }, [selectedMonth]);
+
+  const isCurrentMonth =
+    selectedMonth.getMonth() === new Date().getMonth() &&
+    selectedMonth.getFullYear() === new Date().getFullYear();
 
   /*
    * =========================================================
-   * CURRENT MONTH EXPENSES
+   * SELECTED MONTH INCOME
    * =========================================================
    */
 
-  const currentMonthExpenses = useMemo(() => {
-    const now = new Date();
+  const selectedMonthIncomeList = useMemo(() => {
+    return incomeList.filter((item) => {
+      if (!item.date) return false;
 
+      const date = new Date(`${item.date}T00:00:00`);
+
+      return (
+        date.getMonth() === selectedMonth.getMonth() &&
+        date.getFullYear() === selectedMonth.getFullYear()
+      );
+    });
+  }, [incomeList, selectedMonth]);
+
+  const selectedMonthIncome = useMemo(() => {
+    return selectedMonthIncomeList.reduce(
+      (total, item) => total + Number(item.amount || 0),
+      0
+    );
+  }, [selectedMonthIncomeList]);
+
+  /*
+   * =========================================================
+   * SELECTED MONTH EXPENSES
+   * =========================================================
+   */
+
+  const selectedMonthExpenses = useMemo(() => {
     return expenseList
       .filter((item) => {
         if (!item.date) return false;
 
-        const date = new Date(
-          `${item.date}T00:00:00`
-        );
+        const date = new Date(`${item.date}T00:00:00`);
 
         return (
-          date.getMonth() === now.getMonth() &&
-          date.getFullYear() === now.getFullYear()
+          date.getMonth() === selectedMonth.getMonth() &&
+          date.getFullYear() === selectedMonth.getFullYear()
         );
       })
       .reduce(
@@ -236,17 +268,17 @@ export default function Income() {
           total + Number(item.amount || 0),
         0
       );
-  }, [expenseList]);
+  }, [expenseList, selectedMonth]);
 
   /*
    * =========================================================
-   * CURRENT MONTH BALANCE
+   * SELECTED MONTH BALANCE
    * =========================================================
    */
 
-  const currentMonthBalance =
-    currentMonthIncome -
-    currentMonthExpenses;
+  const selectedMonthBalance =
+    selectedMonthIncome -
+    selectedMonthExpenses;
 
   /*
    * =========================================================
@@ -255,14 +287,39 @@ export default function Income() {
    */
 
   const savingsRate =
-    currentMonthIncome > 0
+    selectedMonthIncome > 0
       ? Math.max(
-          (currentMonthBalance /
-            currentMonthIncome) *
+          (selectedMonthBalance /
+            selectedMonthIncome) *
             100,
           0
         )
       : 0;
+
+  /*
+   * =========================================================
+   * ANNUAL INCOME
+   * =========================================================
+   */
+
+  const selectedYear = selectedMonth.getFullYear();
+
+  const annualIncome = useMemo(() => {
+    return incomeList
+      .filter((item) => {
+        if (!item.date) return false;
+
+        return (
+          new Date(`${item.date}T00:00:00`).getFullYear() ===
+          selectedYear
+        );
+      })
+      .reduce(
+        (total, item) =>
+          total + Number(item.amount || 0),
+        0
+      );
+  }, [incomeList, selectedYear]);
 
   /*
    * =========================================================
@@ -272,20 +329,23 @@ export default function Income() {
 
   const incomeCount = incomeList.length;
 
+  const selectedMonthIncomeCount =
+    selectedMonthIncomeList.length;
+
   /*
    * =========================================================
-   * SORT INCOME
+   * SORT SELECTED MONTH INCOME
    * =========================================================
    */
 
   const sortedIncome = useMemo(() => {
-    return [...incomeList].sort((a, b) => {
+    return [...selectedMonthIncomeList].sort((a, b) => {
       return (
         new Date(`${b.date}T00:00:00`) -
         new Date(`${a.date}T00:00:00`)
       );
     });
-  }, [incomeList]);
+  }, [selectedMonthIncomeList]);
 
   /*
    * =========================================================
@@ -558,29 +618,11 @@ export default function Income() {
 
           <div>
             <span className="stat-label">
-              Total Income
+              {selectedMonthLabel}
             </span>
 
             <strong className="stat-value">
-              {formatCurrency(totalIncome)}
-            </strong>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon">
-            <CalendarDays size={22} />
-          </div>
-
-          <div>
-            <span className="stat-label">
-              This Month
-            </span>
-
-            <strong className="stat-value">
-              {formatCurrency(
-                currentMonthIncome
-              )}
+              {formatCurrency(selectedMonthIncome)}
             </strong>
           </div>
         </div>
@@ -592,12 +634,89 @@ export default function Income() {
 
           <div>
             <span className="stat-label">
-              Total Entries
+              Annual Income
             </span>
 
             <strong className="stat-value">
-              {incomeCount}
+              {formatCurrency(annualIncome)}
             </strong>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-icon">
+            <CalendarDays size={22} />
+          </div>
+
+          <div>
+            <span className="stat-label">
+              Month Entries
+            </span>
+
+            <strong className="stat-value">
+              {selectedMonthIncomeCount}
+            </strong>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================
+          MONTH NAVIGATION
+          ===================================================== */}
+
+      <div className="content-card finance-card">
+        <div
+          className="section-header"
+          style={{
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <h2 className="section-title">
+              {selectedMonthLabel}
+            </h2>
+
+            <p className="section-description">
+              View income recorded for this month only.
+            </p>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              marginLeft: "auto",
+            }}
+          >
+            <button
+              type="button"
+              className="secondary-button secondary-btn"
+              onClick={() => changeMonth(-1)}
+              aria-label="Previous month"
+            >
+              ‹
+            </button>
+
+            <button
+              type="button"
+              className="secondary-button secondary-btn"
+              onClick={goToCurrentMonth}
+              disabled={isCurrentMonth}
+            >
+              Current Month
+            </button>
+
+            <button
+              type="button"
+              className="secondary-button secondary-btn"
+              onClick={() => changeMonth(1)}
+              aria-label="Next month"
+            >
+              ›
+            </button>
           </div>
         </div>
       </div>
@@ -610,7 +729,7 @@ export default function Income() {
         <div className="section-header">
           <div>
             <h2 className="section-title">
-              This Month&apos;s Money Flow
+              Monthly Money Flow
             </h2>
 
             <p className="section-description">
@@ -623,24 +742,24 @@ export default function Income() {
         <div className="money-flow">
           <div className="flow-box flow-income">
             <span className="flow-label">
-              Monthly Income
+              Selected Month Income
             </span>
 
             <div className="flow-value">
               {formatCurrency(
-                currentMonthIncome
+                selectedMonthIncome
               )}
             </div>
           </div>
 
           <div className="flow-box flow-expense">
             <span className="flow-label">
-              Monthly Expenses
+              Selected Month Expenses
             </span>
 
             <div className="flow-value">
               {formatCurrency(
-                currentMonthExpenses
+                selectedMonthExpenses
               )}
             </div>
           </div>
@@ -652,13 +771,13 @@ export default function Income() {
 
             <div
               className={`flow-value ${
-                currentMonthBalance < 0
+                selectedMonthBalance < 0
                   ? "negative-value"
                   : "positive-value"
               }`}
             >
               {formatCurrency(
-                currentMonthBalance
+                selectedMonthBalance
               )}
             </div>
           </div>
@@ -675,7 +794,7 @@ export default function Income() {
             </span>
 
             <span className="progress-value">
-              {currentMonthIncome > 0
+              {selectedMonthIncome > 0
                 ? `${savingsRate.toFixed(1)}%`
                 : "0%"}
             </span>
@@ -697,7 +816,7 @@ export default function Income() {
           </div>
         </div>
 
-        {currentMonthBalance < 0 && (
+        {selectedMonthBalance < 0 && (
           <div className="finance-alert">
             <div className="finance-alert-icon">
               <TrendingDown size={20} />
@@ -726,7 +845,7 @@ export default function Income() {
         <div className="section-header">
           <div>
             <h2 className="section-title">
-              Income History
+              Income History — {selectedMonthLabel}
             </h2>
 
             <p className="section-description">
@@ -870,8 +989,10 @@ export default function Income() {
               event.stopPropagation()
             }
           >
-            <div className="modal-header">
-              <div>
+            <div
+              className="modal-header"
+            >
+              <div style={{ minWidth: 0 }}>
                 <h2 className="modal-title">
                   {editingId
                     ? "Edit Income"

@@ -16337,3 +16337,25 @@ textarea {
   color: var(--taskbar-theme-main) !important;
   -webkit-text-fill-color: var(--taskbar-theme-main) !important;
 }
+
+/* =========================================================
+   REPORTS — THEME-ADAPTIVE GOAL PROGRESS BARS
+   Keep this block at the end so it overrides older hardcoded
+   blue/purple progress-bar rules above.
+   ========================================================= */
+.main-content .reports-page .report-progress-bar,
+.reports-page .report-progress-bar {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--taskbar-theme-main, var(--tb-red, #e50914)) 65%, #000),
+    var(--taskbar-theme-main, var(--tb-red, #e50914)),
+    var(--taskbar-theme-main, var(--tb-red, #e50914))
+  ) !important;
+  background-size: 200% 100%;
+}
+
+/* The bar itself is the filled portion; do not style it as a track. */
+.main-content .reports-page .report-progress,
+.reports-page .report-progress {
+  background: rgba(255, 255, 255, 0.10);
+}

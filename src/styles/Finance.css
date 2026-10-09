@@ -188,7 +188,7 @@
 
   margin: 0 0 24px;
 
-  padding: 28px;
+  padding: 20px;
 
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 18px;
@@ -891,7 +891,7 @@
    ========================================================= */
 
 .finance-page .list-card {
-  padding: 28px;
+  padding: 20px;
 }
 
 .finance-page .finance-list {
@@ -1193,53 +1193,97 @@
    MODAL
    ========================================================= */
 
+/*
+ * Income.jsx and Expenses.jsx render the modal directly inside
+ * .finance-page (not through a React portal).
+ *
+ * The important fix is:
+ * 1. Keep the modal above the fixed Taskbar header.
+ * 2. When the modal exists, raise the Finance page stacking
+ *    context so the descendant fixed overlay cannot sit behind
+ *    the header.
+ * 3. Keep the panel below the header's visual area.
+ * 4. Never move the X button outside the header.
+ */
+
+.finance-page:has(.finance-modal-overlay) {
+  position: relative;
+  z-index: 2147483647;
+}
+
 .finance-page .finance-modal-overlay {
-  position: fixed;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
 
-  inset: 0;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
 
-  z-index: 9999;
+  /*
+   * Leave enough space below the fixed Taskbar header.
+   * This prevents the modal title/X from being hidden behind it.
+   */
+  padding: 88px 18px 18px !important;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 
-  padding: 24px;
-
-  background: rgba(0, 0, 0, 0.76);
+  background: rgba(0, 0, 0, 0.76) !important;
 
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }
 
-.finance-page .modal-card,
-.finance-page .finance-modal {
-  width: 100%;
-  max-width: 560px;
-  max-height: calc(100vh - 48px);
+.finance-page .modal-card.finance-modal,
+.finance-page .modal-card {
+  position: relative !important;
 
-  overflow-y: auto;
+  width: min(500px, calc(100vw - 36px)) !important;
+  max-width: 500px !important;
 
-  padding: 28px;
+  /*
+   * 88px top clearance + 18px bottom clearance.
+   */
+  max-height: calc(100vh - 106px) !important;
+
+  margin: 0 !important;
+  padding: 22px !important;
+
+  box-sizing: border-box !important;
+
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 18px;
 
-  background: rgba(10, 10, 14, 0.97);
+  background: rgba(10, 10, 14, 0.98);
 
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+
+  isolation: isolate;
 }
 
 .finance-page .modal-header {
   width: 100%;
 
   display: flex;
-  align-items: flex-start;
+  align-items: center !important;
   justify-content: space-between;
 
-  gap: 20px;
+  gap: 14px;
 
-  margin-bottom: 24px;
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+
+  overflow: visible !important;
+}
+
+.finance-page .modal-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .finance-page .modal-title {
@@ -1255,31 +1299,95 @@
 
 .finance-page .icon-button,
 .finance-page .close-btn {
-  width: 38px;
-  height: 38px;
-  min-width: 38px;
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
 
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 36px !important;
 
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+
+  box-sizing: border-box !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 9px;
 
   background: rgba(255, 255, 255, 0.035);
 
-  color: rgba(255, 255, 255, 0.65);
+  color: rgba(255, 255, 255, 0.70);
 
   cursor: pointer;
+
+  z-index: 2;
 }
 
 .finance-page .icon-button:hover,
 .finance-page .close-btn:hover {
-  border-color: color-mix(in srgb, var(--taskbar-theme-main) 30%, transparent);
+  border-color: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 30%,
+    transparent
+  );
 
-  background: color-mix(in srgb, var(--taskbar-theme-main) 8%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 8%,
+    transparent
+  );
 
   color: var(--taskbar-theme-main);
+}
+
+/* Modal form spacing */
+.finance-page .finance-modal .form-group {
+  margin-bottom: 18px;
+}
+
+.finance-page .finance-modal .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.finance-page .finance-modal .form-row,
+.finance-page .finance-modal .form-grid {
+  gap: 16px;
+}
+
+.finance-page .finance-modal .modal-actions,
+.finance-page .finance-modal .button-row {
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+/* Modal scrollbar */
+.finance-page .finance-modal::-webkit-scrollbar {
+  width: 7px;
+}
+
+.finance-page .finance-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.finance-page .finance-modal::-webkit-scrollbar-thumb {
+  background: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 35%,
+    transparent
+  );
+  border-radius: 20px;
 }
 
 /* =========================================================
@@ -1600,116 +1708,644 @@
 }
 
 /* =========================================================
-   TASKBAR FINANCE - FINAL SPACING / GLASS OVERRIDES
+   FINANCE — FINAL STRUCTURE & RESPONSIVE POLISH
+   Keeps the existing black/red glass theme.
    ========================================================= */
 
-/* Keep the entire Finance page away from the viewport/content edges. */
+/* ---------- Page shell ---------- */
 .finance-page {
-  width: calc(100% - 32px);
-  max-width: 1400px;
+  width: min(1400px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 32px 24px 50px;
+  padding: 30px 28px 56px;
   box-sizing: border-box;
 }
 
-/* Prevent grids/flex children from creating horizontal overflow. */
-.finance-page,
-.finance-page > *,
-.finance-page .content-card,
-.finance-page .finance-card,
-.finance-page .list-card,
-.finance-page .stats-grid,
-.finance-page .money-flow,
-.finance-page .financial-overview,
-.finance-page .form-row,
-.finance-page .form-grid {
+.finance-page > * {
   min-width: 0;
   max-width: 100%;
 }
 
-/* Glass inputs: dark enough to type/read, with visible white text. */
+/* ---------- Cards: consistent glass surface ---------- */
+.finance-page .content-card,
+.finance-page .finance-card,
+.finance-page .list-card {
+  padding: 22px;
+  margin-bottom: 22px;
+  border-radius: 18px;
+}
+
+.finance-page .stats-grid {
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.finance-page .money-flow,
+.finance-page .financial-overview {
+  gap: 14px;
+}
+
+/* ---------- Page header ---------- */
+.finance-page .page-header {
+  min-height: 64px;
+  margin-bottom: 24px;
+  gap: 20px;
+}
+
+.finance-page .page-header-left {
+  gap: 14px;
+}
+
+.finance-page .page-header-icon {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  border-radius: 13px;
+}
+
+.finance-page .page-title {
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.finance-page .page-subtitle {
+  margin-top: 6px;
+}
+
+/* ---------- Section headers ---------- */
+.finance-page .section-header {
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.finance-page .section-title {
+  font-size: 19px;
+}
+
+.finance-page .section-description {
+  margin-top: 5px;
+}
+
+/* ---------- Stat cards ---------- */
+.finance-page .stat-card {
+  min-height: 104px;
+  padding: 19px;
+  gap: 13px;
+  border-radius: 15px;
+}
+
+.finance-page .stat-icon {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  border-radius: 11px;
+}
+
+.finance-page .stat-card > div:last-child {
+  gap: 5px;
+}
+
+.finance-page .stat-value,
+.finance-page .stat-card strong {
+  font-size: 19px;
+}
+
+/* ---------- Money flow / overview ---------- */
+.finance-page .flow-box,
+.finance-page .overview-card {
+  padding: 18px;
+  border-radius: 13px;
+}
+
+.finance-page .flow-value {
+  font-size: 21px;
+}
+
+/* ---------- Lists ---------- */
+.finance-page .list-card {
+  overflow: visible;
+}
+
+.finance-page .finance-list {
+  gap: 9px;
+}
+
+.finance-page .finance-list-item {
+  min-height: 68px;
+  padding: 15px 16px;
+  border-radius: 12px;
+}
+
+.finance-page .item-left {
+  gap: 12px;
+}
+
+.finance-page .item-right {
+  gap: 10px;
+}
+
+.finance-page .item-icon {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 10px;
+}
+
+.finance-page .income-actions,
+.finance-page .expense-actions {
+  gap: 6px;
+}
+
+.finance-page .edit-btn,
+.finance-page .delete-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+}
+
+/* ---------- Inputs ---------- */
 .finance-page input,
 .finance-page select,
 .finance-page textarea {
-  background: rgba(20, 20, 25, 0.62) !important;
-  color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background: rgba(20, 20, 25, 0.62);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.13);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  caret-color: #ffffff;
+  caret-color: #fff;
 }
 
 .finance-page input::placeholder,
 .finance-page textarea::placeholder {
-  color: rgba(255, 255, 255, 0.62) !important;
-  opacity: 1 !important;
+  color: rgba(255, 255, 255, 0.48);
+  opacity: 1;
 }
 
 .finance-page input:focus,
 .finance-page select:focus,
 .finance-page textarea:focus {
-  background: rgba(20, 20, 25, 0.76) !important;
-  color: #ffffff !important;
-  border-color: color-mix(in srgb, var(--taskbar-theme-main) 65%, transparent) !important;
+  background: rgba(20, 20, 25, 0.76);
+  border-color: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 65%,
+    transparent
+  );
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--taskbar-theme-main) 10%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+    0 0 0 3px color-mix(
+      in srgb,
+      var(--taskbar-theme-main) 9%,
+      transparent
+    ),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* Date/month/time controls remain readable in dark mode. */
-.finance-page input[type="date"],
-.finance-page input[type="month"],
-.finance-page input[type="time"] {
-  color-scheme: dark;
-  color: #ffffff !important;
+/* =========================================================
+   MODAL — CLEAN STRUCTURE
+   ========================================================= */
+
+/*
+  The React components render the Finance modal inside .finance-page.
+  The page is raised only while a modal exists, so the fixed Taskbar
+  header cannot cover the modal.
+*/
+.finance-page:has(.finance-modal-overlay) {
+  position: relative;
+  z-index: 2147483647;
 }
 
-/* Give the main finance sections comfortable internal spacing. */
-.finance-page .content-card,
-.finance-page .finance-card,
-.finance-page .list-card {
-  padding: 28px;
+.finance-page .finance-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+
+  /* Taskbar clearance + balanced viewport breathing room */
+  padding: 82px 24px 24px !important;
+
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+
+  background: rgba(0, 0, 0, 0.72) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-/* Extra space around the outermost sections. */
-.finance-page > section,
-.finance-page > .content-card,
-.finance-page > .finance-card {
-  margin-bottom: 24px;
+.finance-page .modal-card.finance-modal,
+.finance-page .modal-card {
+  position: relative !important;
+
+  width: min(520px, 100%) !important;
+  max-width: 520px !important;
+  max-height: calc(100vh - 106px) !important;
+
+  margin: 0 auto !important;
+  padding: 24px !important;
+
+  box-sizing: border-box !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 18px;
+
+  /* Same glass language as the rest of Finance */
+  background: rgba(10, 10, 14, 0.96);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow:
+    0 28px 70px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.02);
+
+  isolation: isolate;
 }
 
-/* Tablet */
+/* Modal header is a real two-column row: title | close */
+.finance-page .finance-modal .modal-header {
+  width: 100%;
+  min-height: 40px;
+
+  display: flex;
+  align-items: center !important;
+  justify-content: space-between;
+
+  gap: 16px;
+  margin: 0 0 22px !important;
+  padding: 0 0 16px !important;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: visible !important;
+}
+
+.finance-page .finance-modal .modal-header > div:first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.finance-page .finance-modal .modal-title {
+  margin: 0;
+  padding: 0;
+
+  color: #fff;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* X button: centered inside its own 36px control */
+.finance-page .finance-modal .icon-button,
+.finance-page .finance-modal .close-btn {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+
+  flex: 0 0 36px !important;
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+
+  margin: 0 !important;
+  padding: 0 !important;
+
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  align-self: center !important;
+
+  box-sizing: border-box !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.72);
+
+  cursor: pointer;
+  z-index: 2;
+
+  transition:
+    color 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    transform 0.18s ease;
+}
+
+.finance-page .finance-modal .icon-button:hover,
+.finance-page .finance-modal .close-btn:hover {
+  color: var(--taskbar-theme-main);
+  background: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 8%,
+    transparent
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 30%,
+    transparent
+  );
+  transform: translateY(-1px);
+}
+
+.finance-page .finance-modal .icon-button:active,
+.finance-page .finance-modal .close-btn:active {
+  transform: translateY(0);
+}
+
+/* ---------- Modal form layout ---------- */
+.finance-page .finance-modal .form-row,
+.finance-page .finance-modal .form-grid {
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.finance-page .finance-modal .form-group {
+  min-width: 0;
+  margin-bottom: 17px;
+}
+
+.finance-page .finance-modal .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.finance-page .finance-modal .form-label,
+.finance-page .finance-modal .form-group label {
+  margin-bottom: 0;
+}
+
+.finance-page .finance-modal .modal-actions,
+.finance-page .finance-modal .button-row {
+  width: 100%;
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+/* ---------- Modal scrollbar ---------- */
+.finance-page .finance-modal {
+  scrollbar-width: thin;
+  scrollbar-color:
+    color-mix(in srgb, var(--taskbar-theme-main) 35%, transparent)
+    transparent;
+}
+
+.finance-page .finance-modal::-webkit-scrollbar {
+  width: 7px;
+}
+
+.finance-page .finance-modal::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.finance-page .finance-modal::-webkit-scrollbar-thumb {
+  background: color-mix(
+    in srgb,
+    var(--taskbar-theme-main) 35%,
+    transparent
+  );
+  border-radius: 20px;
+}
+
+/* ---------- Progress ---------- */
+.finance-page .progress-track {
+  width: 100% !important;
+  height: 10px !important;
+  border-radius: 999px !important;
+  overflow: hidden !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  background-image: none !important;
+}
+
+.finance-page .progress-bar,
+.finance-page .finance-progress-fill {
+  display: block !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  border-radius: 999px !important;
+
+  background: var(--taskbar-theme-main) !important;
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--taskbar-theme-main) 65%, #000) 0%,
+    var(--taskbar-theme-main) 55%,
+    var(--taskbar-theme-main) 100%
+  ) !important;
+
+  box-shadow:
+    0 0 10px color-mix(
+      in srgb,
+      var(--taskbar-theme-main) 35%,
+      transparent
+    ) !important;
+
+  transition: width 0.35s ease !important;
+}
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
 @media (max-width: 1100px) {
   .finance-page {
-    width: calc(100% - 28px);
-    padding: 28px 22px 45px;
+    width: min(100%, calc(100% - 28px));
+    padding: 28px 22px 48px;
+  }
+
+  .finance-page .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .finance-page .financial-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-/* Mobile */
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
 @media (max-width: 760px) {
   .finance-page {
     width: calc(100% - 20px);
-    padding: 20px 14px 40px;
+    padding: 22px 14px 42px;
+  }
+
+  .finance-page .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  .finance-page .page-header > .primary-button,
+  .finance-page .page-header > .primary-btn {
+    width: 100%;
   }
 
   .finance-page .content-card,
   .finance-page .finance-card,
   .finance-page .list-card {
-    padding: 20px 16px;
+    padding: 19px 16px;
+    border-radius: 15px;
+  }
+
+  .finance-page .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+    margin-bottom: 18px;
+  }
+
+  .finance-page .section-header > .secondary-button,
+  .finance-page .section-header > .secondary-btn {
+    width: 100%;
+  }
+
+  .finance-page .stats-grid,
+  .finance-page .money-flow,
+  .finance-page .financial-overview {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .finance-page .form-row,
+  .finance-page .form-grid,
+  .finance-page .finance-modal .form-row,
+  .finance-page .finance-modal .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .finance-page .finance-budget-display {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .finance-page .budget-month-info {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .finance-page .finance-list-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 13px;
+    padding: 15px;
+  }
+
+  .finance-page .item-left,
+  .finance-page .item-right {
+    width: 100%;
+  }
+
+  .finance-page .item-right {
+    justify-content: space-between;
+    padding-left: 50px;
+  }
+
+  /* Mobile modal */
+  .finance-page .finance-modal-overlay {
+    align-items: flex-start !important;
+    padding: 74px 12px 14px !important;
+  }
+
+  .finance-page .modal-card.finance-modal,
+  .finance-page .modal-card {
+    width: 100% !important;
+    max-width: 520px !important;
+    max-height: calc(100vh - 88px) !important;
+    padding: 20px 17px !important;
+    border-radius: 16px;
+  }
+
+  .finance-page .finance-modal .modal-header {
+    gap: 12px;
+    margin-bottom: 19px !important;
+    padding-bottom: 14px !important;
   }
 }
 
-/* Small phones */
+/* =========================================================
+   SMALL PHONES
+   ========================================================= */
+
 @media (max-width: 480px) {
   .finance-page {
-    width: calc(100% - 16px);
-    padding: 16px 10px 32px;
+    width: calc(100% - 14px);
+    padding: 18px 9px 34px;
   }
 
-  .finance-page .content-card,
-  .finance-page .finance-card,
-  .finance-page .list-card {
-    padding: 18px 14px;
+  .finance-page .page-title {
+    font-size: 24px;
+  }
+
+  .finance-page .page-header-left {
+    gap: 11px;
+  }
+
+  .finance-page .page-header-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+
+  .finance-page .stat-card {
+    min-height: 92px;
+    padding: 17px;
+  }
+
+  .finance-page .flow-box {
+    padding: 16px;
+  }
+
+  .finance-page .overview-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .finance-page .overview-row strong {
+    text-align: left;
+  }
+
+  .finance-page .finance-modal-overlay {
+    padding: 70px 9px 10px !important;
+  }
+
+  .finance-page .modal-card.finance-modal,
+  .finance-page .modal-card {
+    max-height: calc(100vh - 80px) !important;
+    padding: 18px 14px !important;
+    border-radius: 15px;
+  }
+
+  .finance-page .finance-modal .modal-title {
+    font-size: 19px;
+  }
+
+  .finance-page .finance-modal .icon-button,
+  .finance-page .finance-modal .close-btn {
+    flex-basis: 34px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+  }
+
+  .finance-page .modal-actions,
+  .finance-page .button-row {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .finance-page .modal-actions button,
+  .finance-page .button-row button {
+    width: 100%;
   }
 }

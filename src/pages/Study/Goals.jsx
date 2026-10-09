@@ -18,8 +18,6 @@ import {
   getGoals,
   saveGoals,
   getTopics,
-  getTodoList,
-  saveTodoList,
 } from "../../utils/db";
 
 import {
@@ -28,6 +26,7 @@ import {
 } from "../../utils/calculations";
 
 import {
+  getItemsFromFirestore,
   saveItemToFirestore,
   deleteItemFromFirestore,
 } from "../../firebase/firestore";
@@ -56,6 +55,24 @@ const LEARNING_SKILLS = [
 // PERSONAL SKILLS
 // ========================================
 
+const HISTORY_CATEGORY = "Goals";
+const HISTORY_DELAY_MS = 2 * 24 * 60 * 60 * 1000;
+
+function getCompletionTimestamp(goal) {
+  const value = goal?.completedAtTimestamp || goal?.completedAt;
+  const timestamp = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function isCompletedForHistory(goal, now = Date.now()) {
+  const timestamp = getCompletionTimestamp(goal);
+  return (
+    goal?.status === "completed" &&
+    timestamp !== null &&
+    now - timestamp >= HISTORY_DELAY_MS
+  );
+}
+
 const PERSONAL_SKILLS = [
   "Communication",
   "English",
@@ -73,6 +90,12 @@ const PERSONAL_SKILLS = [
 
 function Goals() {
   const [goals, setGoals] = useState([]);
+  const [historyClock, setHistoryClock] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setHistoryClock(Date.now()), 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [topics, setTopics] = useState([]);
   const [goalTasks, setGoalTasks] = useState([]);
 
@@ -100,17 +123,50 @@ function Goals() {
       try {
         const savedGoals = await getGoals();
         const savedTopics = await getTopics();
-        const savedTodoList = await getTodoList();
+        const savedTodoList = await getItemsFromFirestore("todoList");
 
         if (!mounted) {
           return;
         }
 
-        setGoals(
+        const normalizedGoals = (
           Array.isArray(savedGoals)
             ? savedGoals
             : []
-        );
+        ).map((goal) => {
+          if (goal?.status !== "completed") {
+            return goal;
+          }
+
+          return {
+            ...goal,
+            historyCategory:
+              goal.historyCategory || HISTORY_CATEGORY,
+            completedAt:
+              goal.completedAt ||
+              null,
+            completedAtTimestamp:
+              goal.completedAtTimestamp ||
+              (goal.completedAt ? new Date(goal.completedAt).toISOString() : null),
+          };
+        });
+
+        const needsHistoryMigration =
+          normalizedGoals.some((goal, index) =>
+            goal?.status === "completed" &&
+            Boolean(goal?.completedAt || goal?.completedAtTimestamp) &&
+            (
+              !savedGoals[index]?.historyCategory ||
+              !savedGoals[index]?.completedAt ||
+              !savedGoals[index]?.completedAtTimestamp
+            )
+          );
+
+        if (needsHistoryMigration) {
+          await saveGoals(normalizedGoals);
+        }
+
+        setGoals(normalizedGoals);
 
         setTopics(
           Array.isArray(savedTopics)
@@ -182,7 +238,7 @@ function Goals() {
     async function refreshGoalTasks() {
       try {
         const savedTodoList =
-          await getTodoList();
+          await getItemsFromFirestore("todoList");
 
         if (mounted) {
           setGoalTasks(
@@ -261,40 +317,91 @@ function Goals() {
   }, [topicSkills]);
 
   // ========================================
+  // TASK COMPLETION NORMALIZATION
+  // ========================================
+
+  // Prefer the explicit `completed` value when present. Older tasks may
+  // also contain a stale `status: "completed"`, which must not override
+  // `completed: false`.
+  function isTaskCompleted(task) {
+    if (typeof task?.completed === "boolean") {
+      return task.completed;
+    }
+
+    if (typeof task?.completed === "string") {
+      return task.completed.trim().toLowerCase() === "true";
+    }
+
+    return task?.status === "completed";
+  }
+
+  // ========================================
+  // CALCULATE GOAL STATUS FROM GOAL TASKS
+  // ========================================
+
+  function calculateGoalStatus(goal, allTasks = goalTasks) {
+    if (!goal) {
+      return "pending";
+    }
+
+    const tasksForGoal = allTasks.filter(
+      (task) =>
+        task &&
+        task.goalId !== undefined &&
+        task.goalId !== null &&
+        String(task.goalId) === String(goal.id)
+    );
+
+    // No Goal Tasks = Pending
+    if (tasksForGoal.length === 0) {
+      return "pending";
+    }
+
+    const completedTasks = tasksForGoal.filter(isTaskCompleted).length;
+
+    // All tasks completed = Completed
+    if (completedTasks === tasksForGoal.length) {
+      return "completed";
+    }
+
+    // At least one completed = In Progress
+    if (completedTasks > 0) {
+      return "in-progress";
+    }
+
+    // No tasks completed = Pending
+    return "pending";
+  }
+
+  // ========================================
   // CALCULATE GOAL PROGRESS
   // ========================================
 
   function calculateGoalProgress(goal) {
-    if (goal.status === "completed") {
-      return 100;
-    }
-
-    if (!goal.skill) {
+    if (!goal) {
       return 0;
     }
 
-    const skillTopics = topics.filter(
-      (topic) =>
-        typeof topic.skill === "string" &&
-        topic.skill.toLowerCase() ===
-          goal.skill.toLowerCase()
+    // Goal Tasks are the ONLY source of Goal progress.
+    // The Goal status and Learning topic status must not
+    // make a Goal show 100% when its Goal Tasks are incomplete.
+    const tasksForGoal = goalTasks.filter(
+      (task) =>
+        task &&
+        task.goalId !== undefined &&
+        task.goalId !== null &&
+        String(task.goalId) === String(goal.id)
     );
 
-    if (skillTopics.length === 0) {
+    // No linked Goal Tasks = no task progress.
+    if (tasksForGoal.length === 0) {
       return 0;
     }
 
-    const completedTopics =
-      skillTopics.filter(
-        (topic) =>
-          topic.status === "completed"
-      ).length;
+    const completedTasks = tasksForGoal.filter(isTaskCompleted).length;
 
     const percentage =
-      calculatePercentage(
-        completedTopics,
-        skillTopics.length
-      );
+      (completedTasks / tasksForGoal.length) * 100;
 
     if (!Number.isFinite(percentage)) {
       return 0;
@@ -302,7 +409,7 @@ function Goals() {
 
     return Math.min(
       100,
-      Math.max(0, percentage)
+      Math.max(0, Math.round(percentage))
     );
   }
 
@@ -448,7 +555,7 @@ function Goals() {
               goal.id ===
               editingGoal.id
             ) {
-              return {
+              const updatedGoal = {
                 ...goal,
 
                 title:
@@ -463,9 +570,25 @@ function Goals() {
                 targetDate:
                   goalForm.targetDate,
 
-                status:
-                  goalForm.status,
+                status: calculateGoalStatus(goal, goalTasks),
               };
+
+              if (updatedGoal.status === "completed") {
+                updatedGoal.historyCategory =
+                  HISTORY_CATEGORY;
+                updatedGoal.completedAt =
+                  goal.completedAt ||
+                  new Date().toISOString();
+                updatedGoal.completedAtTimestamp =
+                  goal.completedAtTimestamp ||
+                  (goal.completedAt ? new Date(goal.completedAt).toISOString() : new Date().toISOString());
+              } else {
+                delete updatedGoal.historyCategory;
+                delete updatedGoal.completedAt;
+                delete updatedGoal.completedAtTimestamp;
+              }
+
+              return updatedGoal;
             }
 
             return goal;
@@ -493,8 +616,7 @@ function Goals() {
           targetDate:
             goalForm.targetDate,
 
-          status:
-            goalForm.status,
+          status: "pending",
         };
 
         updatedGoals = [
@@ -596,15 +718,30 @@ function Goals() {
   ) {
     try {
       const updatedGoals =
-        goals.map(
-          (goal) =>
-            goal.id === id
-              ? {
-                  ...goal,
-                  status,
-                }
-              : goal
-        );
+        goals.map((goal) => {
+          if (goal.id !== id) {
+            return goal;
+          }
+
+          const updatedGoal = {
+            ...goal,
+            status,
+          };
+
+          if (status === "completed") {
+            updatedGoal.historyCategory =
+              HISTORY_CATEGORY;
+            updatedGoal.completedAt =
+              goal.completedAt ||
+              new Date().toISOString();
+          } else {
+            delete updatedGoal.historyCategory;
+            delete updatedGoal.completedAt;
+                delete updatedGoal.completedAtTimestamp;
+          }
+
+          return updatedGoal;
+        });
 
       // ======================================
       // SAVE TO FIREBASE
@@ -680,7 +817,7 @@ function Goals() {
 
     try {
       const existingTodoList =
-        await getTodoList();
+        await getItemsFromFirestore("todoList");
 
       const todos =
         Array.isArray(
@@ -695,15 +832,7 @@ function Goals() {
       ];
 
       // ======================================
-      // SAVE LOCAL TODO LIST
-      // ======================================
-
-      await saveTodoList(
-        updated
-      );
-
-      // ======================================
-      // SAVE TO FIRESTORE
+      // SAVE ONLY THE NEW TASK TO FIRESTORE
       // ======================================
 
       await saveItemToFirestore(
@@ -713,17 +842,51 @@ function Goals() {
       );
 
       // ======================================
-      // UPDATE GOAL TASKS UI
+      // UPDATE GOAL TASKS + AUTOMATIC GOAL STATUS
       // ======================================
 
-      setGoalTasks(
-        updated.filter(
-          (item) =>
-            item?.goalId !==
-              undefined &&
-            item?.goalId !== null
-        )
+      const updatedGoalTasks = updated.filter(
+        (item) =>
+          item?.goalId !== undefined &&
+          item?.goalId !== null
       );
+
+      setGoalTasks(updatedGoalTasks);
+
+      const newStatus = calculateGoalStatus(
+        goal,
+        updatedGoalTasks
+      );
+
+      const updatedGoals = goals.map(
+        (item) => {
+          if (String(item.id) !== String(goal.id)) {
+            return item;
+          }
+
+          const updatedGoal = {
+            ...item,
+            status: newStatus,
+          };
+
+          if (newStatus === "completed") {
+            updatedGoal.historyCategory =
+              HISTORY_CATEGORY;
+            updatedGoal.completedAt =
+              item.completedAt ||
+              new Date().toISOString();
+          } else {
+            delete updatedGoal.historyCategory;
+            delete updatedGoal.completedAt;
+                delete updatedGoal.completedAtTimestamp;
+          }
+
+          return updatedGoal;
+        }
+      );
+
+      await saveGoals(updatedGoals);
+      setGoals(updatedGoals);
 
       window.dispatchEvent(
         new Event(
@@ -754,7 +917,7 @@ function Goals() {
   ) {
     try {
       const existingTodoList =
-        await getTodoList();
+        await getItemsFromFirestore("todoList");
 
       const todos =
         Array.isArray(
@@ -768,19 +931,20 @@ function Goals() {
           (item) =>
             String(item.id) ===
             String(task.id)
-              ? {
-                  ...item,
+              ? (() => {
+                  const nextCompleted = !isTaskCompleted(item);
+                  const completedAt = nextCompleted
+                    ? new Date().toISOString()
+                    : null;
 
-                  completed:
-                    item.completed !==
-                    true,
-
-                  completedAt:
-                    item.completed !==
-                    true
-                      ? new Date().toISOString()
-                      : null,
-                }
+                  return {
+                    ...item,
+                    completed: nextCompleted,
+                    // Keep legacy status fields consistent with the boolean.
+                    status: nextCompleted ? "completed" : "pending",
+                    completedAt,
+                  };
+                })()
               : item
         );
 
@@ -790,10 +954,6 @@ function Goals() {
             String(item.id) ===
             String(task.id)
         );
-
-      await saveTodoList(
-        updated
-      );
 
       if (changedTask) {
         await saveItemToFirestore(
@@ -805,14 +965,63 @@ function Goals() {
         );
       }
 
-      setGoalTasks(
-        updated.filter(
-          (item) =>
-            item?.goalId !==
-              undefined &&
-            item?.goalId !== null
-        )
+      const updatedGoalTasks = updated.filter(
+        (item) =>
+          item?.goalId !== undefined &&
+          item?.goalId !== null
       );
+
+      setGoalTasks(updatedGoalTasks);
+
+      // Automatically calculate the Goal status from its tasks:
+      // 0 completed -> Pending
+      // some completed -> In Progress
+      // all completed -> Completed
+      const currentGoal = goals.find(
+        (item) =>
+          String(item.id) ===
+          String(task.goalId)
+      );
+
+      if (currentGoal) {
+        const newStatus = calculateGoalStatus(
+          currentGoal,
+          updatedGoalTasks
+        );
+
+        const updatedGoals = goals.map(
+          (item) => {
+            if (
+              String(item.id) !==
+              String(currentGoal.id)
+            ) {
+              return item;
+            }
+
+            const updatedGoal = {
+              ...item,
+              status: newStatus,
+            };
+
+            if (newStatus === "completed") {
+              updatedGoal.historyCategory =
+                HISTORY_CATEGORY;
+              updatedGoal.completedAt =
+                item.completedAt ||
+                new Date().toISOString();
+            } else {
+              delete updatedGoal.historyCategory;
+              delete updatedGoal.completedAt;
+                delete updatedGoal.completedAtTimestamp;
+            }
+
+            return updatedGoal;
+          }
+        );
+
+        await saveGoals(updatedGoals);
+        setGoals(updatedGoals);
+      }
 
       window.dispatchEvent(
         new Event(
@@ -852,7 +1061,7 @@ function Goals() {
 
     try {
       const existingTodoList =
-        await getTodoList();
+        await getItemsFromFirestore("todoList");
 
       const todos =
         Array.isArray(
@@ -868,23 +1077,65 @@ function Goals() {
             String(task.id)
         );
 
-      await saveTodoList(
-        updated
-      );
-
       await deleteItemFromFirestore(
         "todoList",
         String(task.id)
       );
 
-      setGoalTasks(
-        updated.filter(
-          (item) =>
-            item?.goalId !==
-              undefined &&
-            item?.goalId !== null
-        )
+      const updatedGoalTasks = updated.filter(
+        (item) =>
+          item?.goalId !== undefined &&
+          item?.goalId !== null
       );
+
+      setGoalTasks(updatedGoalTasks);
+
+      // Recalculate the Goal status after deleting a Goal Task.
+      const currentGoal = goals.find(
+        (item) =>
+          String(item.id) ===
+          String(task.goalId)
+      );
+
+      if (currentGoal) {
+        const newStatus = calculateGoalStatus(
+          currentGoal,
+          updatedGoalTasks
+        );
+
+        const updatedGoals = goals.map(
+          (item) => {
+            if (
+              String(item.id) !==
+              String(currentGoal.id)
+            ) {
+              return item;
+            }
+
+            const updatedGoal = {
+              ...item,
+              status: newStatus,
+            };
+
+            if (newStatus === "completed") {
+              updatedGoal.historyCategory =
+                HISTORY_CATEGORY;
+              updatedGoal.completedAt =
+                item.completedAt ||
+                new Date().toISOString();
+            } else {
+              delete updatedGoal.historyCategory;
+              delete updatedGoal.completedAt;
+                delete updatedGoal.completedAtTimestamp;
+            }
+
+            return updatedGoal;
+          }
+        );
+
+        await saveGoals(updatedGoals);
+        setGoals(updatedGoals);
+      }
 
       window.dispatchEvent(
         new Event(
@@ -910,26 +1161,31 @@ function Goals() {
   // STATISTICS
   // ========================================
 
-  const stats = useMemo(() => {
-    const total =
-      goals.length;
-
-    const completed =
+  const activeGoals = useMemo(
+    () =>
       goals.filter(
         (goal) =>
-          goal.status ===
-          "completed"
-      ).length;
+          goal.status !== "completed" ||
+          !isCompletedForHistory(goal, historyClock)
+      ),
+    [goals, historyClock]
+  );
+
+  const stats = useMemo(() => {
+    const total =
+      activeGoals.length;
+
+    const completed = activeGoals.filter((goal) => goal.status === "completed").length;
 
     const pending =
-      goals.filter(
+      activeGoals.filter(
         (goal) =>
           goal.status ===
           "pending"
       ).length;
 
     const inProgress =
-      goals.filter(
+      activeGoals.filter(
         (goal) =>
           goal.status ===
           "in-progress"
@@ -939,7 +1195,7 @@ function Goals() {
 
     if (total > 0) {
       const totalProgress =
-        goals.reduce(
+        activeGoals.reduce(
           (sum, goal) => {
             const progress =
               calculateGoalProgress(
@@ -982,7 +1238,7 @@ function Goals() {
       inProgress,
       averageProgress,
     };
-  }, [goals, topics]);
+  }, [activeGoals, topics, goalTasks]);
 
   // ========================================
   // LOADING
@@ -1292,9 +1548,8 @@ function Goals() {
               </select>
 
               <small>
-                Learning skills automatically
-                calculate progress from
-                completed Learning topics.
+                Goal progress is calculated from
+                the Goal Tasks you add below.
               </small>
 
             </div>
@@ -1318,40 +1573,6 @@ function Goals() {
                 }
                 required
               />
-
-            </div>
-
-            {/* STATUS */}
-
-            <div className="form-group">
-
-              <label>
-                Status
-              </label>
-
-              <select
-                name="status"
-                value={
-                  goalForm.status
-                }
-                onChange={
-                  handleChange
-                }
-              >
-
-                <option value="pending">
-                  Pending
-                </option>
-
-                <option value="in-progress">
-                  In Progress
-                </option>
-
-                <option value="completed">
-                  Completed
-                </option>
-
-              </select>
 
             </div>
 
@@ -1401,7 +1622,7 @@ function Goals() {
             EMPTY STATE
         ================================== */}
 
-        {goals.length === 0 ? (
+        {activeGoals.length === 0 ? (
 
           <div className="empty-state">
 
@@ -1435,7 +1656,7 @@ function Goals() {
 
           <div className="goals-list">
 
-            {goals.map((goal) => {
+            {activeGoals.map((goal) => {
 
               const progress =
                 calculateGoalProgress(
@@ -1575,39 +1796,30 @@ function Goals() {
 
                   </div>
 
-                  {/* TOPIC COUNT */}
+                  {/* PROGRESS SOURCE */}
 
-                  {topicStats.total > 0 ? (
-
+                  {tasksForGoal.length > 0 ? (
                     <p className="goal-topic-count">
-
-                      {topicStats.completed}
-
+                      {
+                        tasksForGoal.filter(isTaskCompleted).length
+                      }
                       {" "}of{" "}
-
-                      {topicStats.total}
-
-                      {" "}
-
-                      {goal.skill}
-
-                      {" "}
-
-                      topics completed
-
+                      {tasksForGoal.length} goal tasks completed
                     </p>
-
-                  ) : (
-
+                  ) : topicStats.total > 0 ? (
                     <p className="goal-topic-count">
-
-                      {goal.status ===
-                      "completed"
-                        ? "Goal completed."
-                        : "No Learning topics connected yet."}
-
+                      {topicStats.completed}
+                      {" "}of{" "}
+                      {topicStats.total}
+                      {" "}
+                      {goal.skill}
+                      {" "}
+                      topics completed
                     </p>
-
+                  ) : (
+                    <p className="goal-topic-count">
+                      No Goal Tasks connected yet. Progress is 0%.
+                    </p>
                   )}
 
                   {/* ==================================
@@ -1656,6 +1868,22 @@ function Goals() {
                         </span>
 
                       </div>
+
+                      {tasksForGoal.length > 0 && (
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            opacity: 0.7,
+                            marginLeft: "auto",
+                            marginRight: "8px",
+                          }}
+                        >
+                          {
+                            tasksForGoal.filter(isTaskCompleted).length
+                          }
+                          /{tasksForGoal.length} completed
+                        </span>
+                      )}
 
                       <button
                         type="button"
@@ -1769,6 +1997,8 @@ function Goals() {
                                       0.55,
                                   }}
                                 >
+                                  Goal: {goal.title}
+                                  {" • "}
                                   {task.date
                                     ? `Due: ${task.date}`
                                     : "No date"}
@@ -1885,34 +2115,83 @@ function Goals() {
 
                     </div>
 
-                    <select
-                      value={
-                        goal.status ||
-                        "pending"
-                      }
-                      onChange={(
-                        event
-                      ) =>
-                        updateGoalStatus(
-                          goal.id,
-                          event.target.value
-                        )
-                      }
-                    >
+                    {(() => {
+                      // Goal status is derived from linked tasks only.
+                      // With no linked tasks, calculateGoalStatus returns pending.
+                      const displayStatus = calculateGoalStatus(
+                        goal,
+                        goalTasks
+                      );
 
-                      <option value="pending">
-                        Pending
-                      </option>
+                      const statusConfig = {
+                        pending: {
+                          label: "Pending",
+                          background: "rgba(255, 255, 255, 0.06)",
+                          border: "rgba(255, 255, 255, 0.14)",
+                          text: "#d1d5db",
+                        },
+                        "in-progress": {
+                          label: "In Progress",
+                          background: "rgba(59, 130, 246, 0.14)",
+                          border: "rgba(59, 130, 246, 0.35)",
+                          text: "#60a5fa",
+                        },
+                        completed: {
+                          label: "Completed",
+                          background: "rgba(34, 197, 94, 0.14)",
+                          border: "rgba(34, 197, 94, 0.35)",
+                          text: "#4ade80",
+                        },
+                      };
 
-                      <option value="in-progress">
-                        In Progress
-                      </option>
+                      const config =
+                        statusConfig[
+                          displayStatus
+                        ] ||
+                        statusConfig.pending;
 
-                      <option value="completed">
-                        Completed
-                      </option>
-
-                    </select>
+                      return (
+                        <div
+                          role="status"
+                          aria-label={`Goal status: ${config.label}`}
+                          title={
+                            tasksForGoal.length > 0
+                              ? "Status is automatically calculated from Goal Tasks"
+                              : "Add Goal Tasks to automatically track this status"
+                          }
+                          style={{
+                            minWidth: "128px",
+                            height: "46px",
+                            padding: "0 18px",
+                            borderRadius: "12px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            boxSizing: "border-box",
+                            background: config.background,
+                            border: `1px solid ${config.border}`,
+                            color: config.text,
+                            fontSize: "14px",
+                            fontWeight: 600,
+                            letterSpacing: "0.1px",
+                            cursor: "default",
+                            userSelect: "none",
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "50%",
+                              background: config.text,
+                              flexShrink: 0,
+                            }}
+                          />
+                          {config.label}
+                        </div>
+                      );
+                    })()}
 
                   </div>
 

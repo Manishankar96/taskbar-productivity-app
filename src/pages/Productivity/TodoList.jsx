@@ -12,23 +12,15 @@ import {
   Target,
   ClipboardCheck,
   Clock3,
-  Archive as ArchiveIcon,
-  RotateCcw,
 } from "lucide-react";
 
 import {
-  getTodoList,
-  saveTodoList,
   getTopics,
   saveTopics,
   getGoals,
   saveGoals,
-  getTimetable,
-  saveTimetable,
   getAssessments,
   saveAssessments,
-  getQuickTasks,
-  saveQuickTasks,
 } from "../../utils/db";
 
 import {
@@ -41,13 +33,9 @@ import {
 import { getTodayLocalDateKey } from "../../utils/calculations";
 import Modal from "../../components/common/Modal";
 
-import {
-  ARCHIVE_RETENTION_DAYS,
-  cleanupArchive,
-  createArchiveItem,
-  getArchiveAge,
-  getArchiveDaysRemaining,
-} from "../../services/archiveService";
+
+const HISTORY_CATEGORY = "Tasks";
+const COMPLETED_RETENTION_DAYS = 2;
 
 const emptyForm = {
   title: "",
@@ -77,38 +65,31 @@ function getDateStatus(date, today) {
   return "overdue";
 }
 
-function getCurrentWeekday() {
-  const days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
 
-  return days[new Date().getDay()];
+function getCompletedAgeInDays(value) {
+  if (!value) return Infinity;
+
+  const completedDate = new Date(value);
+  if (Number.isNaN(completedDate.getTime())) return Infinity;
+
+  const now = new Date();
+  const diff = now.getTime() - completedDate.getTime();
+
+  return diff / (24 * 60 * 60 * 1000);
 }
 
-function getLinkedArchiveKey(task) {
-  if (!task?.source || task?.sourceId === undefined || task?.sourceId === null) {
-    return "";
-  }
-
-  const datePart =
-    task.source === "timetable"
-      ? String(task.date || "")
-      : "";
-
-  return `${task.source}:${String(task.sourceId)}:${datePart}`;
+function isCompletedWithinRetention(value) {
+  const age = getCompletedAgeInDays(value);
+  return age >= 0 && age < COMPLETED_RETENTION_DAYS;
 }
+
 
 function TodoList() {
   const [todos, setTodos] = useState([]);
   const [linkedTasks, setLinkedTasks] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [historyClock, setHistoryClock] = useState(Date.now());
 
   const [showForm, setShowForm] = useState(false);
   const [editingTodo, setEditingTodo] = useState(null);
@@ -116,6 +97,15 @@ function TodoList() {
   const [form, setForm] = useState(emptyForm);
 
   const today = getTodayLocalDateKey();
+
+  // Refresh the 2-day completed-task boundary automatically.
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setHistoryClock(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   /*
    * ============================================================
@@ -128,15 +118,11 @@ function TodoList() {
       const [
         topics,
         goals,
-        timetable,
         assessments,
-        quickTasks,
       ] = await Promise.all([
         getTopics(),
         getGoals(),
-        getTimetable(),
         getAssessments(),
-        getQuickTasks(),
       ]);
 
       const unified = [];
@@ -158,6 +144,10 @@ function TodoList() {
             title: topic.name || "Learning Topic",
             date: topic.plannedDate,
             completed: topic.status === "completed",
+            completedAt:
+              topic.completedAtTimestamp ||
+              topic.completedAt ||
+              null,
             type: "Learning",
             icon: "learning",
             skill: topic.skill || "",
@@ -182,6 +172,7 @@ function TodoList() {
             title: goal.title || "Goal",
             date: goal.targetDate,
             completed: goal.status === "completed",
+            completedAt: goal.completedAt || null,
             type: "Goal",
             icon: "goal",
             skill: goal.skill || "",
@@ -208,6 +199,7 @@ function TodoList() {
             date: assessment.date,
             completed:
               assessment.status === "completed",
+            completedAt: assessment.completedAt || null,
             type: "Assessment",
             icon: "assessment",
             skill: assessment.type || "",
@@ -215,90 +207,9 @@ function TodoList() {
         }
       );
 
-      /*
-       * --------------------------------------------------------
-       * QUICK TASKS
-       * --------------------------------------------------------
-       */
-
-      (Array.isArray(quickTasks) ? quickTasks : []).forEach(
-        (task) => {
-          unified.push({
-            id: `quick-${task.id}`,
-            source: "quickTasks",
-            sourceId: task.id,
-            title: task.task || "Task",
-            date: task.dueDate || "",
-            completed:
-              task.status === "completed",
-            type: "Task",
-            icon: "task",
-            skill: task.priority
-              ? `${task.priority} Priority`
-              : "",
-          });
-        }
-      );
-
-      /*
-       * --------------------------------------------------------
-       * TODAY'S TIMETABLE
-       *
-       * Timetable is recurring by weekday.
-       * Therefore only today's entries become today's tasks.
-       * --------------------------------------------------------
-       */
-
-      const currentWeekday =
-        getCurrentWeekday();
-
-      (Array.isArray(timetable)
-        ? timetable
-        : []
-      ).forEach((entry) => {
-        if (
-          entry?.day !== currentWeekday ||
-          !entry?.activity
-        ) {
-          return;
-        }
-
-        if (
-          entry.status === "completed" ||
-          entry.status === "missed"
-        ) {
-          return;
-        }
-
-        unified.push({
-          id: `timetable-${entry.id}-${today}`,
-          source: "timetable",
-          sourceId: entry.id,
-          title: entry.activity,
-          date: today,
-          completed:
-            entry.status === "completed",
-          type: "Timetable",
-          icon: "timetable",
-          skill: entry.category || "",
-          startTime: entry.startTime || "",
-          endTime: entry.endTime || "",
-        });
-      });
-
-      const archivedKeys = new Set(
-        todos
-          .filter((item) => item?.archived === true)
-          .map((item) => String(item.archiveKey || ""))
-          .filter(Boolean)
-      );
-
-      const visibleLinkedTasks = unified.filter((task) => {
-        const archiveKey = getLinkedArchiveKey(task);
-        return !archiveKey || !archivedKeys.has(archiveKey);
-      });
-
-      setLinkedTasks(visibleLinkedTasks);
+            // Linked tasks remain owned by Learning, Goals, or Assessments.
+      // Their original record supplies the completion timestamp used by Reports History.
+      setLinkedTasks(unified);
     } catch (error) {
       console.error(
         "Failed to load linked tasks:",
@@ -318,32 +229,8 @@ function TodoList() {
         /*
          * ======================================================
          * PERSONAL TO-DO LOAD
-         * ======================================================
-         */
-
-        const localData =
-          await getTodoList();
-
-        const localTodos =
-          Array.isArray(localData)
-            ? localData
-            : [];
-
-        if (isMounted) {
-          setTodos(
-            localTodos.map((item) => ({
-              ...item,
-              id: String(item.id),
-              date: item.date || "",
-              completed:
-                item.completed === true,
-            }))
-          );
-        }
-
-        /*
-         * ======================================================
-         * FIRESTORE
+         *
+         * Firestore is the single source of truth.
          * ======================================================
          */
 
@@ -365,157 +252,31 @@ function TodoList() {
           );
         }
 
-        cloudTodos = cloudTodos.map(
-          (item) => ({
-            ...item,
-            id: String(item.id),
-            date: item.date || "",
-            completed:
-              item.completed === true,
-          })
-        );
+        const normalizedCloudTodos =
+          cloudTodos.map((item) => {
+            const normalized = {
+              ...item,
+              id: String(item.id),
+              date: item.date || "",
+              completed:
+                item.completed === true,
+            };
 
-        /*
-         * ======================================================
-         * MERGE
-         * ======================================================
-         */
+            if (normalized.completed && !normalized.source) {
+              normalized.historyCategory =
+                normalized.historyCategory ||
+                HISTORY_CATEGORY;
+              normalized.completedAt =
+                normalized.completedAt ||
+                normalized.completedAtTimestamp ||
+                null;
+            }
 
-        const mergedMap = new Map();
-
-        localTodos.forEach((item) => {
-          if (
-            item?.id !== undefined &&
-            item?.id !== null
-          ) {
-            mergedMap.set(
-              String(item.id),
-              {
-                ...item,
-                id: String(item.id),
-                date: item.date || "",
-                completed:
-                  item.completed === true,
-              }
-            );
-          }
-        });
-
-        cloudTodos.forEach((item) => {
-          if (
-            item?.id !== undefined &&
-            item?.id !== null
-          ) {
-            mergedMap.set(
-              String(item.id),
-              item
-            );
-          }
-        });
-
-        const mergedTodos =
-          Array.from(mergedMap.values());
-
-        /*
-         * ======================================================
-         * ARCHIVE CLEANUP
-         *
-         * Only records already marked as archived are passed to
-         * cleanupArchive. Active tasks are never removed merely
-         * because their normal task date is old.
-         * ======================================================
-         */
-        const archivedItems = mergedTodos.filter(
-          (item) => item?.archived === true
-        );
-
-        const retainedArchivedItems =
-          cleanupArchive(archivedItems);
-
-        const retainedArchiveIds = new Set(
-          retainedArchivedItems.map((item) =>
-            String(item.id)
-          )
-        );
-
-        const expiredArchivedItems =
-          archivedItems.filter(
-            (item) =>
-              !retainedArchiveIds.has(
-                String(item.id)
-              )
-          );
-
-        const cleanedTodos = mergedTodos.filter(
-          (item) =>
-            item?.archived !== true ||
-            retainedArchiveIds.has(
-              String(item.id)
-            )
-        );
-
-        for (const expiredItem of expiredArchivedItems) {
-          try {
-            await deleteItemFromFirestore(
-              "todoList",
-              String(expiredItem.id)
-            );
-          } catch (error) {
-            console.error(
-              "Failed to remove expired archived task:",
-              error
-            );
-          }
-        }
+            return normalized;
+          });
 
         if (isMounted) {
-          setTodos(cleanedTodos);
-        }
-
-        await saveTodoList(
-          cleanedTodos
-        );
-
-        /*
-         * ======================================================
-         * UPLOAD LOCAL-ONLY TASKS
-         * ======================================================
-         */
-
-        const cloudIds = new Set(
-          cloudTodos.map((item) =>
-            String(item.id)
-          )
-        );
-
-        for (const item of localTodos) {
-          if (
-            item?.id === undefined ||
-            item?.id === null
-          ) {
-            continue;
-          }
-
-          const itemId =
-            String(item.id);
-
-          if (!cloudIds.has(itemId)) {
-            try {
-              await saveItemToFirestore(
-                "todoList",
-                itemId,
-                {
-                  ...item,
-                  id: itemId,
-                }
-              );
-            } catch (error) {
-              console.error(
-                "Failed to upload todo task:",
-                error
-              );
-            }
-          }
+          setTodos(normalizedCloudTodos);
         }
 
         /*
@@ -527,43 +288,40 @@ function TodoList() {
         unsubscribe =
           subscribeToFirestoreCollection(
             "todoList",
-            async (firestoreItems) => {
+            (firestoreItems) => {
               if (!isMounted) {
                 return;
               }
 
               const normalized =
-                Array.isArray(
-                  firestoreItems
-                )
-                  ? firestoreItems.map(
-                      (item) => ({
+                Array.isArray(firestoreItems)
+                  ? firestoreItems.map((item) => {
+                      const normalizedItem = {
                         ...item,
-                        id: String(
-                          item.id
-                        ),
-                        date:
-                          item.date ||
-                          "",
+                        id: String(item.id),
+                        date: item.date || "",
                         completed:
-                          item.completed ===
-                          true,
-                      })
-                    )
+                          item.completed === true,
+                      };
+
+                      if (
+                        normalizedItem.completed &&
+                        !normalizedItem.source
+                      ) {
+                        normalizedItem.historyCategory =
+                          normalizedItem.historyCategory ||
+                          HISTORY_CATEGORY;
+                        normalizedItem.completedAt =
+                          normalizedItem.completedAt ||
+                          normalizedItem.completedAtTimestamp ||
+                          null;
+                      }
+
+                      return normalizedItem;
+                    })
                   : [];
 
               setTodos(normalized);
-
-              try {
-                await saveTodoList(
-                  normalized
-                );
-              } catch (error) {
-                console.error(
-                  "Failed to update IndexedDB:",
-                  error
-                );
-              }
             }
           );
 
@@ -649,17 +407,6 @@ function TodoList() {
       }));
 
     setTodos(normalized);
-
-    try {
-      await saveTodoList(
-        normalized
-      );
-    } catch (error) {
-      console.error(
-        "Failed to save todo list locally:",
-        error
-      );
-    }
 
     if (changedTodo) {
       try {
@@ -810,6 +557,13 @@ function TodoList() {
         : null,
     };
 
+    if (completed) {
+      updatedTodo.historyCategory =
+        HISTORY_CATEGORY;
+    } else {
+      delete updatedTodo.historyCategory;
+    }
+
     const updated =
       todos.map((item) =>
         String(item.id) ===
@@ -833,6 +587,9 @@ function TodoList() {
   async function toggleLinkedTask(task) {
     const completed =
       task.completed !== true;
+    const completedAt = completed
+      ? new Date().toISOString()
+      : null;
 
     try {
       /*
@@ -856,11 +613,17 @@ function TodoList() {
                     completed
                       ? "completed"
                       : "remaining",
-                  completedAt:
-                    completed
-                      ? topic.completedAt ||
-                        today
-                      : topic.completedAt,
+                  completedAt,
+                  completedAtTimestamp: completedAt,
+                  ...(completed
+                    ? {
+                        historyCategory:
+                          "Learning",
+                      }
+                    : {
+                        historyCategory:
+                          undefined,
+                      }),
                 }
               : topic
           );
@@ -891,6 +654,14 @@ function TodoList() {
                     completed
                       ? "completed"
                       : "pending",
+                  completedAt,
+                  ...(completed
+                    ? {
+                        historyCategory: "Goals",
+                      }
+                    : {
+                        historyCategory: undefined,
+                      }),
                 }
               : goal
           );
@@ -920,83 +691,30 @@ function TodoList() {
               String(
                 task.sourceId
               )
-                ? {
-                    ...assessment,
-                    status:
-                      completed
-                        ? "completed"
-                        : "upcoming",
-                  }
+                ? (() => {
+                    const updatedAssessment = {
+                      ...assessment,
+                      status:
+                        completed
+                          ? "completed"
+                          : "upcoming",
+                      completedAt,
+                    };
+
+                    if (completed) {
+                      updatedAssessment.historyCategory =
+                        "Assessments";
+                    } else {
+                      delete updatedAssessment.historyCategory;
+                      delete updatedAssessment.completedAt;
+                    }
+
+                    return updatedAssessment;
+                  })()
                 : assessment
           );
 
         await saveAssessments(
-          updated
-        );
-      }
-
-      /*
-       * QUICK TASKS
-       */
-
-      else if (
-        task.source ===
-        "quickTasks"
-      ) {
-        const quickTasks =
-          await getQuickTasks();
-
-        const updated =
-          quickTasks.map(
-            (item) =>
-              String(item.id) ===
-              String(
-                task.sourceId
-              )
-                ? {
-                    ...item,
-                    status:
-                      completed
-                        ? "completed"
-                        : "pending",
-                  }
-                : item
-          );
-
-        await saveQuickTasks(
-          updated
-        );
-      }
-
-      /*
-       * TIMETABLE
-       */
-
-      else if (
-        task.source ===
-        "timetable"
-      ) {
-        const timetable =
-          await getTimetable();
-
-        const updated =
-          timetable.map(
-            (entry) =>
-              String(entry.id) ===
-              String(
-                task.sourceId
-              )
-                ? {
-                    ...entry,
-                    status:
-                      completed
-                        ? "completed"
-                        : "planned",
-                  }
-                : entry
-          );
-
-        await saveTimetable(
           updated
         );
       }
@@ -1040,17 +758,6 @@ function TodoList() {
     setTodos(updated);
 
     try {
-      await saveTodoList(
-        updated
-      );
-    } catch (error) {
-      console.error(
-        "Failed to delete todo locally:",
-        error
-      );
-    }
-
-    try {
       await deleteItemFromFirestore(
         "todoList",
         String(todo.id)
@@ -1065,237 +772,13 @@ function TodoList() {
 
   /*
    * ============================================================
-   * ARCHIVE
-   * ============================================================
-   */
-
-  async function archiveTodo(todo) {
-    if (!todo || todo.completed !== true) {
-      return;
-    }
-
-    const now = new Date().toISOString();
-
-    /*
-     * PERSONAL TODO
-     */
-    if (!todo.source) {
-      const originalId = String(
-        todo.originalId ?? todo.id
-      );
-
-      const originalTodo = todos.find(
-        (item) => String(item.id) === originalId
-      );
-
-      if (!originalTodo) {
-        console.error(
-          "Archive failed: personal todo was not found.",
-          originalId
-        );
-        return;
-      }
-
-      const archivedTodo = {
-        ...originalTodo,
-        id: originalId,
-        completed: true,
-        completedAt: originalTodo.completedAt || now,
-        archived: true,
-        archivedAt: now,
-        archiveDate: now,
-        archiveKey: `personal:${originalId}:`,
-        archiveSource: "personal",
-      };
-
-      const updated = todos.map((item) =>
-        String(item.id) === originalId
-          ? archivedTodo
-          : item
-      );
-
-      await persist(updated, archivedTodo);
-      return;
-    }
-
-    /*
-     * LINKED TASK
-     *
-     * Linked tasks belong to Learning, Goals, Assessments,
-     * Quick Tasks or Timetable. Their source record must stay
-     * completed, while a separate archive record is created in
-     * todoList so the source data is not damaged.
-     */
-    const archiveKey = getLinkedArchiveKey(todo);
-
-    if (!archiveKey) {
-      console.error(
-        "Archive failed: linked task has no archive key.",
-        todo
-      );
-      return;
-    }
-
-    const existing = todos.find(
-      (item) =>
-        item?.archived === true &&
-        String(item.archiveKey || "") === archiveKey
-    );
-
-    if (existing) {
-      return;
-    }
-
-    const archivedTodo = {
-      id: `archive-${todo.source}-${String(todo.sourceId)}-${String(
-        todo.date || ""
-      ).replace(/[^0-9A-Za-z_-]/g, "")}`,
-      title: todo.title || "Archived task",
-      date: todo.date || "",
-      completed: true,
-      completedAt: todo.completedAt || now,
-      archived: true,
-      archivedAt: now,
-      archiveDate: now,
-      archiveKey,
-      archiveSource: todo.source,
-      source: todo.source,
-      sourceId: todo.sourceId,
-      type: todo.type || "Task",
-      icon: todo.icon || "task",
-      skill: todo.skill || "",
-      startTime: todo.startTime || "",
-      endTime: todo.endTime || "",
-    };
-
-    await persist(
-      [...todos, archivedTodo],
-      archivedTodo
-    );
-  }
-
-  async function restoreArchivedTodo(item) {
-    if (!item) {
-      return;
-    }
-
-    /* Restore linked source task first. */
-    if (item.source) {
-      await toggleLinkedTask({
-        ...item,
-        completed: true,
-      });
-
-      const updated = todos.filter(
-        (todo) => String(todo.id) !== String(item.id)
-      );
-
-      setTodos(updated);
-
-      try {
-        await saveTodoList(updated);
-      } catch (error) {
-        console.error(
-          "Failed to remove restored linked archive locally:",
-          error
-        );
-      }
-
-      try {
-        await deleteItemFromFirestore(
-          "todoList",
-          String(item.id)
-        );
-      } catch (error) {
-        console.error(
-          "Failed to remove restored linked archive from Firestore:",
-          error
-        );
-      }
-
-      return;
-    }
-
-    const restoredTodo = {
-      ...item,
-      archived: false,
-    };
-
-    delete restoredTodo.archivedAt;
-    delete restoredTodo.archiveDate;
-    delete restoredTodo.archiveKey;
-    delete restoredTodo.archiveSource;
-
-    const updated = todos.map((todo) =>
-      String(todo.id) === String(item.id)
-        ? restoredTodo
-        : todo
-    );
-
-    await persist(updated, restoredTodo);
-  }
-
-  async function deleteArchivedTodo(item) {
-    const confirmed = window.confirm(
-      `Permanently delete "${item.title || "Archived task"}"?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const updated = todos.filter(
-      (todo) =>
-        String(todo.id) !== String(item.id)
-    );
-
-    setTodos(updated);
-
-    try {
-      await saveTodoList(updated);
-    } catch (error) {
-      console.error(
-        "Failed to update archived tasks locally:",
-        error
-      );
-    }
-
-    try {
-      await deleteItemFromFirestore(
-        "todoList",
-        String(item.id)
-      );
-    } catch (error) {
-      console.error(
-        "Failed to permanently delete archived task:",
-        error
-      );
-    }
-  }
-
-  const archivedTasks = useMemo(
-    () =>
-      todos
-        .filter((task) => task?.archived === true)
-        .sort((a, b) =>
-          String(b.archivedAt || "").localeCompare(
-            String(a.archivedAt || "")
-          )
-        ),
-    [todos]
-  );
-
-  /*
-   * ============================================================
    * ALL UNIFIED TASKS
    * ============================================================
    */
 
   const allTasks = useMemo(() => {
     const personal =
-      todos
-        .filter((todo) => todo?.archived !== true)
-        .map((todo) => ({
+      todos.map((todo) => ({
         ...todo,
         id: `personal-${todo.id}`,
         originalId: todo.id,
@@ -1375,13 +858,16 @@ function TodoList() {
     [allTasks, today]
   );
 
+  // Completed tasks stay visible for 2 days.
+  // After 2 days they are no longer shown here and become History items in Reports.
   const completedTasks = useMemo(
     () =>
       allTasks.filter(
         (task) =>
-          task.completed === true
+          task.completed &&
+          isCompletedWithinRetention(task.completedAt)
       ),
-    [allTasks]
+    [allTasks, historyClock]
   );
 
   /*
@@ -1407,15 +893,7 @@ function TodoList() {
       );
     }
 
-    if (task.icon === "timetable") {
-      return (
-        <Clock3 size={18} />
-      );
-    }
-
-    return (
-      <ListTodo size={18} />
-    );
+    return <ListTodo size={18} />;
   }
 
   /*
@@ -1549,24 +1027,6 @@ function TodoList() {
             </>
           )}
 
-          {task.completed && (
-            <button
-              type="button"
-              className="edit-button"
-              title="Archive completed task"
-              onClick={() => archiveTodo(task)}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                minWidth: "82px",
-              }}
-            >
-              <ArchiveIcon size={17} />
-              <span>Archive</span>
-            </button>
-          )}
         </div>
       </div>
     );
@@ -1672,19 +1132,6 @@ function TodoList() {
           </strong>
         </div>
 
-        <div className="stat-card">
-          <CheckCircle2
-            size={25}
-          />
-
-          <span>
-            Completed
-          </span>
-
-          <strong>
-            {completedTasks.length}
-          </strong>
-        </div>
       </section>
 
       {/* ADD / EDIT FORM */}
@@ -1918,7 +1365,8 @@ function TodoList() {
         </section>
       )}
 
-      {/* COMPLETED */}
+
+      {/* COMPLETED - 2 DAY RETENTION */}
 
       <section
         className="learning-section"
@@ -1933,119 +1381,28 @@ function TodoList() {
             </h2>
 
             <p>
-              Finished tasks from all
-              Taskbar systems.
+              Completed tasks stay here for 2 full days (48 hours) before moving to History.
             </p>
           </div>
         </div>
 
         <div className="topic-list">
-          {completedTasks.map(
-            (task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-              />
-            )
-          )}
+          {completedTasks.map((task) => (
+            <TaskRow
+              key={`completed-${task.id}`}
+              task={task}
+            />
+          ))}
 
-          {completedTasks.length ===
-            0 && (
+          {completedTasks.length === 0 && (
             <p className="empty-topics">
-              No completed tasks.
+              No recently completed tasks.
             </p>
           )}
         </div>
       </section>
 
 
-      {/* ARCHIVE */}
-
-      <section
-        className="learning-section"
-        style={{
-          marginTop: 20,
-        }}
-      >
-        <div className="topic-header">
-          <div>
-            <h2>
-              <ArchiveIcon
-                size={20}
-                style={{
-                  verticalAlign: "middle",
-                  marginRight: "7px",
-                }}
-              />
-              Archive
-            </h2>
-
-            <p>
-              Completed personal tasks can be archived here.
-              Archived records are retained for {ARCHIVE_RETENTION_DAYS} days.
-            </p>
-          </div>
-        </div>
-
-        <div className="topic-list">
-          {archivedTasks.map((task) => {
-            const age = getArchiveAge(task);
-            const remaining = getArchiveDaysRemaining(task);
-
-            return (
-              <div
-                className="topic-row"
-                key={`archive-${task.id}`}
-              >
-                <div className="topic-information">
-                  <strong>
-                    {task.title}
-                  </strong>
-
-                  <span>
-                    <ArchiveIcon size={16} />
-                    Archived {age} day{age === 1 ? "" : "s"} ago
-                    {" • "}
-                    {remaining > 0
-                      ? `${remaining} day${remaining === 1 ? "" : "s"} remaining`
-                      : "Expires now"}
-                  </span>
-                </div>
-
-                <div className="topic-actions">
-                  <button
-                    type="button"
-                    className="edit-button"
-                    title="Restore task"
-                    onClick={() =>
-                      restoreArchivedTodo(task)
-                    }
-                  >
-                    <RotateCcw size={17} />
-                  </button>
-
-                  <button
-                    type="button"
-                    className="delete-button"
-                    title="Permanently delete archive item"
-                    onClick={() =>
-                      deleteArchivedTodo(task)
-                    }
-                  >
-                    <Trash2 size={17} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          {archivedTasks.length === 0 && (
-            <p className="empty-topics">
-              Archive is empty.
-            </p>
-          )}
-        </div>
-      </section>
 
     </div>
   );

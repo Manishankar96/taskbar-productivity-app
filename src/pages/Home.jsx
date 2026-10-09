@@ -4,7 +4,6 @@ import { Link } from "react-router-dom";
 import TodayPlanner from "../components/planner/TodayPlanner";
 import FocusMode from "../components/planner/FocusMode";
 import CalendarView from "../components/calendar/CalendarView";
-
 import {
   BookOpen,
   CalendarDays,
@@ -56,7 +55,6 @@ const GOALS_COLLECTION = "goals";
 const WATER_COLLECTION = "water";
 const ACTIVITIES_COLLECTION = "activities";
 const ASSESSMENTS_COLLECTION = "assessments";
-const TIMETABLE_COLLECTION = "timetable";
 const PROFILE_COLLECTION = "profile";
 const STUDY_SESSIONS_COLLECTION = "studySessions";
 const STREAK_COLLECTION = "streak";
@@ -79,7 +77,6 @@ function Home() {
   const [studySessions, setStudySessions] = useState([]);
   const [activities, setActivities] = useState([]);
   const [assessments, setAssessments] = useState([]);
-  const [timetable, setTimetable] = useState([]);
   const [profile, setProfile] = useState(null);
   const [reminders, setReminders] = useState([]);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -112,7 +109,6 @@ function Home() {
           studySessionsData,
           activitiesData,
           assessmentsData,
-          timetableData,
           profileData,
         ] = await Promise.all([
           getItemsFromFirestore(TOPICS_COLLECTION),
@@ -121,7 +117,6 @@ function Home() {
           getItemsFromFirestore(STUDY_SESSIONS_COLLECTION),
           getItemsFromFirestore(ACTIVITIES_COLLECTION),
           getItemsFromFirestore(ASSESSMENTS_COLLECTION),
-          getItemsFromFirestore(TIMETABLE_COLLECTION),
           getItemsFromFirestore(PROFILE_COLLECTION),
         ]);
 
@@ -161,12 +156,6 @@ function Home() {
             : []
         );
 
-        setTimetable(
-          Array.isArray(timetableData)
-            ? timetableData
-            : []
-        );
-
         setProfile(
           Array.isArray(profileData)
             ? profileData[0] || null
@@ -191,7 +180,6 @@ function Home() {
       [STUDY_SESSIONS_COLLECTION, setStudySessions],
       [ACTIVITIES_COLLECTION, setActivities],
       [ASSESSMENTS_COLLECTION, setAssessments],
-      [TIMETABLE_COLLECTION, setTimetable],
     ].map(([collection, setter]) =>
       subscribeToFirestoreCollection(
         collection,
@@ -849,46 +837,6 @@ function Home() {
 
 
   /* =====================================================
-     TODAY'S SCHEDULE
-  ===================================================== */
-
-  const todaysSchedule =
-    useMemo(() => {
-      const dayIndex =
-        currentTime.getDay();
-
-      const todayDayName =
-        [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ][dayIndex];
-
-      return timetable
-        .filter(
-          (entry) =>
-            entry.day ===
-            todayDayName
-        )
-        .sort(
-          (a, b) =>
-            (
-              a.startTime || ""
-            ).localeCompare(
-              b.startTime || ""
-            )
-        );
-    }, [
-      timetable,
-      currentTime,
-    ]);
-
-
-  /* =====================================================
      UPCOMING ASSESSMENTS
   ===================================================== */
 
@@ -1039,7 +987,6 @@ function Home() {
           topicsData,
           goalsData,
           assessmentsData,
-          timetableData,
           todoData,
           jobPreparationData,
           applicationsData,
@@ -1049,7 +996,6 @@ function Home() {
           getItemsFromFirestore(TOPICS_COLLECTION),
           getItemsFromFirestore(GOALS_COLLECTION),
           getItemsFromFirestore(ASSESSMENTS_COLLECTION),
-          getItemsFromFirestore(TIMETABLE_COLLECTION),
           getItemsFromFirestore(TODO_COLLECTION),
           getItemsFromFirestore(JOB_PREPARATION_COLLECTION),
           getItemsFromFirestore(APPLICATIONS_COLLECTION),
@@ -1121,44 +1067,6 @@ function Home() {
             source: "Assessments",
           });
         });
-
-        /*
-         * Timetable
-         * Only today's timetable entries are shown as today's
-         * scheduled tasks.
-         */
-        const weekdayNames = [
-          "Sunday",
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-        ];
-
-        const todayWeekday =
-          weekdayNames[new Date().getDay()];
-
-        (Array.isArray(timetableData)
-          ? timetableData
-          : []
-        )
-          .filter(
-            (entry) => entry?.day === todayWeekday
-          )
-          .forEach((entry) => {
-            tasks.push({
-              id: `timetable-${entry.id}`,
-              title:
-                entry.activity ||
-                entry.title ||
-                "Scheduled activity",
-              date: todayKey,
-              completed: false,
-              source: "Timetable",
-            });
-          });
 
         /*
          * Personal To-Do
@@ -1334,7 +1242,6 @@ function Home() {
       "taskbarTopicsUpdated",
       "taskbarGoalsUpdated",
       "taskbarAssessmentsUpdated",
-      "taskbarTimetableUpdated",
       "storage",
     ];
 
@@ -1495,13 +1402,6 @@ function Home() {
         details: item.date || "",
         path: "/assessments",
       })),
-      ...timetable.map((item) => ({
-        id: `timetable-${item.id}`,
-        title: item.activity || item.title || "Scheduled activity",
-        source: "Timetable",
-        details: `${item.day || ""} ${item.startTime || ""}`.trim(),
-        path: "/timetable",
-      })),
       ...reminders.map((item) => ({
         id: `reminder-${item.id}`,
         title: item.title || item.name || item.reminder || "Reminder",
@@ -1535,7 +1435,6 @@ function Home() {
     topics,
     goals,
     assessments,
-    timetable,
     reminders,
     centralTasks,
   ]);
@@ -1567,7 +1466,11 @@ function Home() {
     completed,
   }) {
     const sessionId = `focus-${Date.now()}`;
+    const completedAt = new Date().toISOString();
 
+    /*
+     * Always save the Study Session first.
+     */
     await saveItemToFirestore(
       STUDY_SESSIONS_COLLECTION,
       sessionId,
@@ -1585,9 +1488,241 @@ function Home() {
         minutes: Number(minutes) || 0,
         elapsedSeconds: Number(elapsedSeconds) || 0,
         completed: completed === true,
-        completedAt: new Date().toISOString(),
+        completedAt,
       }
     );
+
+    /*
+     * Only a fully finished Focus Session completes the
+     * original source task.
+     */
+    if (completed !== true || !task?.id) {
+      return;
+    }
+
+    const taskId = String(task.id);
+
+    try {
+      if (taskId.startsWith("learning-")) {
+        const sourceId = taskId.slice("learning-".length);
+        const items = await getItemsFromFirestore(
+          TOPICS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            TOPICS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              status: "completed",
+              completedAt:
+                sourceItem.completedAt || completedAt,
+            }
+          );
+        }
+      } else if (taskId.startsWith("goal-")) {
+        const sourceId = taskId.slice("goal-".length);
+        const items = await getItemsFromFirestore(
+          GOALS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            GOALS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              status: "completed",
+            }
+          );
+        }
+      } else if (taskId.startsWith("assessment-")) {
+        const sourceId = taskId.slice("assessment-".length);
+        const items = await getItemsFromFirestore(
+          ASSESSMENTS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            ASSESSMENTS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              status: "completed",
+              completedAt:
+                sourceItem.completedAt || completedAt,
+            }
+          );
+        }
+      } else if (taskId.startsWith("todo-")) {
+        const sourceId = taskId.slice("todo-".length);
+        const items = await getItemsFromFirestore(
+          TODO_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            TODO_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              completed: true,
+              completedAt:
+                sourceItem.completedAt || completedAt,
+            }
+          );
+        }
+      } else if (taskId.startsWith("job-preparation-")) {
+        const sourceId = taskId.slice(
+          "job-preparation-".length
+        );
+        const items = await getItemsFromFirestore(
+          JOB_PREPARATION_COLLECTION
+        );
+
+        for (const parentItem of items) {
+          const parentTasks = Array.isArray(parentItem?.tasks)
+            ? parentItem.tasks
+            : [parentItem];
+
+          if (
+            !parentTasks.some(
+              (item) => String(item?.id) === sourceId
+            )
+          ) {
+            continue;
+          }
+
+          const updatedParent = Array.isArray(parentItem?.tasks)
+            ? {
+                ...parentItem,
+                tasks: parentItem.tasks.map((item) =>
+                  String(item?.id) === sourceId
+                    ? {
+                        ...item,
+                        completed: true,
+                        completedAt:
+                          item.completedAt || completedAt,
+                      }
+                    : item
+                ),
+              }
+            : {
+                ...parentItem,
+                completed: true,
+                completedAt:
+                  parentItem.completedAt || completedAt,
+              };
+
+          await saveItemToFirestore(
+            JOB_PREPARATION_COLLECTION,
+            parentItem.id,
+            updatedParent
+          );
+
+          break;
+        }
+      } else if (taskId.startsWith("application-follow-up-")) {
+        const sourceId = taskId.slice(
+          "application-follow-up-".length
+        );
+        const items = await getItemsFromFirestore(
+          APPLICATIONS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            APPLICATIONS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              followUpCompleted: true,
+              followUpCompletedAt:
+                sourceItem.followUpCompletedAt || completedAt,
+            }
+          );
+        }
+      } else if (taskId.startsWith("saved-job-action-")) {
+        const sourceId = taskId.slice(
+          "saved-job-action-".length
+        );
+        const items = await getItemsFromFirestore(
+          SAVED_JOBS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            SAVED_JOBS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              actionCompleted: true,
+              actionCompletedAt:
+                sourceItem.actionCompletedAt || completedAt,
+            }
+          );
+        }
+      } else if (taskId.startsWith("interview-")) {
+        const sourceId = taskId.slice("interview-".length);
+        const items = await getItemsFromFirestore(
+          INTERVIEWS_COLLECTION
+        );
+        const sourceItem = items.find(
+          (item) => String(item.id) === sourceId
+        );
+
+        if (sourceItem) {
+          await saveItemToFirestore(
+            INTERVIEWS_COLLECTION,
+            sourceItem.id,
+            {
+              ...sourceItem,
+              status: "Completed",
+            }
+          );
+        }
+      }
+
+      /*
+       * Update Home immediately so the completed task disappears
+       * from Focus Mode without waiting for a page refresh.
+       */
+      setCentralTasks((currentTasks) =>
+        currentTasks.map((item) =>
+          String(item.id) === taskId
+            ? {
+                ...item,
+                completed: true,
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error(
+        "Failed to complete the Focus Mode source task:",
+        error
+      );
+      throw error;
+    }
   }
 
   /* =====================================================
@@ -1795,7 +1930,6 @@ function Home() {
       <TodayPlanner
         tasks={centralTasks}
         reminders={reminders}
-        timetable={timetable}
         studySessions={studySessions}
         currentGoal={currentGoal}
         today={today}
@@ -1815,7 +1949,6 @@ function Home() {
             >
           <CalendarView
     tasks={centralTasks}
-    timetable={timetable}
     today={today}
       />
     </section>
@@ -2210,7 +2343,7 @@ function Home() {
 
 
       {/* =================================================
-          QUICK TASKS + ASSESSMENTS
+          ASSESSMENTS
       ================================================= */}
 
       <section className="two-column">
@@ -2291,66 +2424,10 @@ function Home() {
 
 
       {/* =================================================
-          TODAY'S SCHEDULE + ACTIVITIES
+          TODAY'S ACTIVITIES
       ================================================= */}
 
       <section className="two-column">
-
-        {/* SCHEDULE */}
-
-        <div className="section-card">
-
-          <div className="section-title">
-
-            <CalendarDays
-              size={22}
-            />
-
-            <h2>
-              Today's Schedule
-            </h2>
-
-          </div>
-
-
-          {todaysSchedule.length ===
-            0 && (
-            <p className="empty-topics">
-              No timetable entries for today.
-            </p>
-          )}
-
-
-          {todaysSchedule
-            .slice(0, 4)
-            .map(
-              (entry) => (
-                <div
-                  className="task-item"
-                  key={entry.id}
-                >
-
-                  <span>
-                    {entry.startTime}–
-                    {entry.endTime}
-                    {" • "}
-                    {entry.activity}
-                  </span>
-
-                </div>
-              )
-            )}
-
-
-          <Link
-            to="/timetable"
-            className="view-button"
-          >
-            Open timetable →
-          </Link>
-
-        </div>
-
 
         {/* ACTIVITY */}
 
